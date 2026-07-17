@@ -606,6 +606,85 @@ describe("source-path canonicalization policy", () => {
     expect(invocation.env.TOOL_PATH).toBe(safeBin);
     expect(invocation.env.UNRELATED_VALUE).toBe("kept");
   });
+
+  it("strips prose punctuation around source aliases in env, prompt, title, and body", async () => {
+    const root = await makeTemporaryRoot();
+    const physicalSource = path.join(root, "physical-source");
+    const sourceAlias = path.join(root, "source-alias");
+    const stagingParent = path.join(root, "transaction-staging");
+    await fs.mkdir(physicalSource);
+    await fs.mkdir(stagingParent);
+    await fs.symlink(physicalSource, sourceAlias);
+    const parentEnv = {
+      AI_DAILY_SOURCE: physicalSource,
+      SOURCE_DOT: `See ${sourceAlias}.`,
+      SOURCE_COMMA: `See ${sourceAlias}, next`,
+      SOURCE_PAREN: `See (${sourceAlias})`,
+      SOURCE_CHINESE_PERIOD: `参见${sourceAlias}。`,
+      SOURCE_CHINESE_COMMA: `参见${sourceAlias}，继续`,
+      SOURCE_CHINESE_PAREN: `参见（${sourceAlias}）`,
+      UNRELATED_VALUE: "kept",
+    };
+
+    const invocation = buildCodexInvocation({
+      stagingDir: path.join(root, "website-staging"),
+      outputFile: path.join(root, "website-staging", "output.json"),
+      schemaPath,
+      prompt: "fixed prompt",
+      parentEnv,
+    });
+
+    for (const key of [
+      "SOURCE_DOT",
+      "SOURCE_COMMA",
+      "SOURCE_PAREN",
+      "SOURCE_CHINESE_PERIOD",
+      "SOURCE_CHINESE_COMMA",
+      "SOURCE_CHINESE_PAREN",
+    ]) {
+      expect(invocation.env).not.toHaveProperty(key);
+    }
+    expect(invocation.env.UNRELATED_VALUE).toBe("kept");
+
+    for (const punctuation of [".", ",", ")", "。", "，", "）", "】", "》"]) {
+      expect(() =>
+        buildCodexInvocation({
+          stagingDir: path.join(root, "website-staging"),
+          outputFile: path.join(root, "website-staging", "output.json"),
+          schemaPath,
+          prompt: `Read ${sourceAlias}${punctuation}`,
+          parentEnv,
+        }),
+      ).toThrow(/must not expose the AI Daily source path/i);
+    }
+
+    const runner = vi.fn(async () => ({
+      exitCode: 0,
+      signal: null,
+      stdout: "",
+      stderr: "",
+      timedOut: false,
+    })) as unknown as CodexRunner;
+    for (const lesson of [
+      { ...stagedLesson, titleZh: `标题 ${sourceAlias}，` },
+      { ...stagedLesson, bodyMarkdown: `正文 ${sourceAlias}）` },
+    ]) {
+      await expect(
+        enrichMetadata({
+          stagingParent,
+          assertSafeStagingPath() {},
+          lesson,
+          readCurrentSourceHash: async () => HASH_A,
+          runner,
+          schemaPath,
+          prompt: await fs.readFile(promptPath, "utf8"),
+          parentEnv,
+        }),
+      ).rejects.toThrow(/must not expose the AI Daily source path/i);
+      expect(await fs.readdir(stagingParent)).toEqual([]);
+    }
+    expect(runner).not.toHaveBeenCalled();
+  });
 });
 
 describe("Codex invocation and process runner", () => {

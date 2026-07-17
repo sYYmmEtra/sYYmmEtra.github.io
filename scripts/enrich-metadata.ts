@@ -64,6 +64,10 @@ interface SourcePathPolicy {
   absoluteRoots: readonly string[];
 }
 
+const PROSE_PATH_PUNCTUATION = new Set(
+  Array.from(".,;:!?()[]{}，。；：！？、（）【】《》「」『』〈〉〔〕〖〗〘〙〚〛"),
+);
+
 function tryResolvePhysicalPath(value: string): string | undefined {
   let ancestor = path.resolve(value);
   const missingSuffix: string[] = [];
@@ -133,6 +137,39 @@ function absolutePathExposesSource(
   );
 }
 
+function trimTrailingProsePunctuation(value: string): string {
+  let end = value.length;
+  while (end > 0 && PROSE_PATH_PUNCTUATION.has(value[end - 1]!)) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
+function absolutePathCandidates(value: string): string[] {
+  const rawTokens = value.match(/\/[^\s"'`<>|\\]+/g) ?? [];
+  const candidates: string[] = [];
+
+  for (const token of rawTokens) {
+    candidates.push(token);
+    const trimmed = trimTrailingProsePunctuation(token);
+    if (trimmed !== token) {
+      candidates.push(trimmed);
+    }
+
+    for (let index = 1; index < token.length; index += 1) {
+      if (!PROSE_PATH_PUNCTUATION.has(token[index]!)) {
+        continue;
+      }
+      const prefix = trimTrailingProsePunctuation(token.slice(0, index));
+      if (path.isAbsolute(prefix)) {
+        candidates.push(prefix);
+      }
+    }
+  }
+
+  return unique(candidates);
+}
+
 function valueExposesSource(
   policy: SourcePathPolicy,
   value: string,
@@ -144,8 +181,7 @@ function valueExposesSource(
     return true;
   }
 
-  const absoluteTokens = value.match(/\/[^\s"'`<>|\\]+/g) ?? [];
-  return absoluteTokens.some((candidate) =>
+  return absolutePathCandidates(value).some((candidate) =>
     absolutePathExposesSource(policy, candidate),
   );
 }
