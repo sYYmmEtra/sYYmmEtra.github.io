@@ -77,7 +77,7 @@ describe("SidecarMetadataSchema", () => {
     ).toBe(false);
   });
 
-  it("requires the canonical ID to agree with the lesson number", () => {
+  it("requires an exact four-digit canonical ID that agrees with the lesson number", () => {
     expect(
       SidecarMetadataSchema.safeParse({
         ...pendingSidecar(),
@@ -92,7 +92,7 @@ describe("SidecarMetadataSchema", () => {
           slug: "lesson-10000",
         }),
       }).success,
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("requires the sidecar date to agree with source.file", () => {
@@ -266,6 +266,25 @@ describe("metadata creation and transitions", () => {
       summaryEn: null,
       tags: [],
       metadataSourceHash: null,
+    });
+  });
+
+  it("restores retained English metadata when the source hash reverts", () => {
+    const original = currentSidecar();
+    const changed = reconcileMetadataWithSource(original, HASH_B);
+
+    const reverted = reconcileMetadataWithSource(changed, HASH_A);
+
+    expect(reverted).toMatchObject({
+      source: { ...original.source, hash: HASH_A },
+      sourceStatus: "unreviewed",
+      sourceStatusHash: HASH_A,
+      metadataStatus: "current",
+      metadataSourceHash: HASH_A,
+      titleEn: original.titleEn,
+      summaryEn: original.summaryEn,
+      tags: original.tags,
+      slug: original.slug,
     });
   });
 

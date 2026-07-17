@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 export const ENRICHMENT_CONSTRAINTS = {
-  idPattern:
-    "^lesson-(?:0{3}[1-9]|0{2}[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3,})$",
+  idPattern: "^lesson-[0-9]{4}$",
   sourceHashPattern: "^sha256:[0-9a-f]{64}$",
   titleMinLength: 4,
   titleMaxLength: 120,
@@ -367,12 +366,20 @@ export function reconcileMetadataWithSource(
     return value;
   }
 
+  const retainedMetadataMatchesSource =
+    sidecar.titleEn !== null &&
+    sidecar.summaryEn !== null &&
+    sidecar.tags.length > 0 &&
+    sidecar.metadataSourceHash === hash;
+
   return SidecarMetadataSchema.parse({
     ...sidecar,
     source: { ...sidecar.source, hash },
     sourceStatus: "unreviewed",
     sourceStatusHash: hash,
-    metadataStatus: "needs-review",
+    metadataStatus: retainedMetadataMatchesSource
+      ? "current"
+      : "needs-review",
   });
 }
 

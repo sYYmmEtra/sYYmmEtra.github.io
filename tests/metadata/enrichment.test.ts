@@ -14,6 +14,7 @@ import {
   CLI_HELP,
   buildCodexInvocation,
   enrichMetadata,
+  runMetadataEnrichmentCli,
   runCodexProcess,
   type CodexInvocation,
   type CodexProcessResult,
@@ -25,7 +26,11 @@ const HASH_A = `sha256:${"a".repeat(64)}`;
 const HASH_B = `sha256:${"b".repeat(64)}`;
 const promptPath = path.resolve("scripts/metadata-prompt.md");
 const schemaPath = path.resolve("scripts/metadata-output.schema.json");
+const websiteRoot = path.resolve(".");
+const syncTemporaryRoot = path.join(websiteRoot, ".sync-tmp");
 const temporaryRoots: string[] = [];
+const websiteArtifacts: string[] = [];
+let syncTemporaryRootExisted: boolean | undefined;
 
 function words(count: number): string {
   return Array.from({ length: count }, (_, index) => `word${index + 1}`).join(
@@ -64,8 +69,48 @@ async function makeTemporaryRoot(): Promise<string> {
   return root;
 }
 
+async function ensureSyncTemporaryRoot(): Promise<void> {
+  if (syncTemporaryRootExisted === undefined) {
+    try {
+      await fs.lstat(syncTemporaryRoot);
+      syncTemporaryRootExisted = true;
+    } catch (error) {
+      if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+        throw error;
+      }
+      syncTemporaryRootExisted = false;
+    }
+  }
+  await fs.mkdir(syncTemporaryRoot, { recursive: true, mode: 0o700 });
+}
+
+async function makeWebsiteTransaction(): Promise<string> {
+  await ensureSyncTemporaryRoot();
+  const transaction = await fs.mkdtemp(
+    path.join(syncTemporaryRoot, "metadata-cli-test-"),
+  );
+  websiteArtifacts.push(transaction);
+  return transaction;
+}
+
 afterEach(async () => {
   vi.useRealTimers();
+  for (const artifact of websiteArtifacts.splice(0).reverse()) {
+    await fs.rm(artifact, { recursive: true, force: true });
+  }
+  if (syncTemporaryRootExisted === false) {
+    try {
+      await fs.rmdir(syncTemporaryRoot);
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !("code" in error) ||
+        !["ENOENT", "ENOTEMPTY"].includes(String(error.code))
+      ) {
+        throw error;
+      }
+    }
+  }
   for (const root of temporaryRoots.splice(0)) {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -88,6 +133,12 @@ describe("enrichment validation", () => {
         expectedId: "lesson-0012",
       }),
     ).toThrow(/metadata output ID/i);
+  });
+
+  it("rejects IDs with more than four digits", () => {
+    expect(() =>
+      validateEnrichment(validOutput({ id: "lesson-10000" })),
+    ).toThrow();
   });
 
   it.each([
@@ -138,6 +189,8 @@ describe("enrichment validation", () => {
 describe("checked-in output schema", () => {
   it("has the exact strict draft-2020-12 shape and Zod-parity constraints", async () => {
     const schema = JSON.parse(await fs.readFile(schemaPath, "utf8"));
+
+    expect(ENRICHMENT_CONSTRAINTS.idPattern).toBe("^lesson-[0-9]{4}$");
 
     expect(schema).toMatchObject({
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -197,6 +250,8 @@ describe("CLI contract", () => {
     expect(CLI_HELP).toContain("--staging-parent <directory>");
     expect(CLI_HELP).toContain("--timeout-ms <milliseconds>");
     expect(CLI_HELP).toContain("validated enrichment JSON to stdout");
+    expect(CLI_HELP).toContain("inside --staging-parent");
+    expect(CLI_HELP).toContain(".sync-tmp");
     expect(CLI_HELP).not.toContain("AI_DAILY_SOURCE");
   });
 
@@ -205,6 +260,212 @@ describe("CLI contract", () => {
 
     expect(packageJson.scripts["metadata:enrich"]).toBe(
       "tsx scripts/enrich-metadata.ts",
+    );
+  });
+});
+
+describe("CLI staging-parent isolation", () => {
+  const quietCli = {
+    stdout: vi.fn(),
+    stderr: vi.fn(),
+  };
+
+  it("rejects a staging parent inside AI_DAILY_SOURCE before creating or running", async () => {
+    const sourceRoot = await makeTemporaryRoot();
+    const stagingParent = path.join(sourceRoot, "transaction");
+    await fs.mkdir(stagingParent);
+    const before = await fs.readdir(stagingParent);
+    const runner = vi.fn() as unknown as CodexRunner;
+
+    await expect(
+      runMetadataEnrichmentCli(
+        [
+          "--input",
+          path.join(stagingParent, "lesson.json"),
+          "--staging-parent",
+          stagingParent,
+        ],
+        {
+          ...quietCli,
+          runner,
+          parentEnv: { AI_DAILY_SOURCE: sourceRoot },
+        },
+      ),
+    ).rejects.toThrow(/AI Daily source/i);
+    expect(runner).not.toHaveBeenCalled();
+    expect(await fs.readdir(stagingParent)).toEqual(before);
+  });
+
+  it("rejects an arbitrary outside staging directory without AI_DAILY_SOURCE", async () => {
+    const stagingParent = await makeTemporaryRoot();
+    const before = await fs.readdir(stagingParent);
+    const runner = vi.fn() as unknown as CodexRunner;
+
+    await expect(
+      runMetadataEnrichmentCli(
+        [
+          "--input",
+          path.join(stagingParent, "lesson.json"),
+          "--staging-parent",
+          stagingParent,
+        ],
+        { ...quietCli, runner, parentEnv: {} },
+      ),
+    ).rejects.toThrow(/\.sync-tmp/i);
+    expect(runner).not.toHaveBeenCalled();
+    expect(await fs.readdir(stagingParent)).toEqual(before);
+  });
+
+  it("rejects the website root and .sync-tmp itself as staging parents", async () => {
+    await ensureSyncTemporaryRoot();
+    const runner = vi.fn() as unknown as CodexRunner;
+
+    for (const stagingParent of [websiteRoot, syncTemporaryRoot]) {
+      const before = await fs.readdir(stagingParent);
+      await expect(
+        runMetadataEnrichmentCli(
+          [
+            "--input",
+            path.join(stagingParent, "lesson.json"),
+            "--staging-parent",
+            stagingParent,
+          ],
+          { ...quietCli, runner, parentEnv: {} },
+        ),
+      ).rejects.toThrow(/\.sync-tmp/i);
+      expect(await fs.readdir(stagingParent)).toEqual(before);
+    }
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("rejects a symlinked escape below website .sync-tmp before creating or running", async () => {
+    await ensureSyncTemporaryRoot();
+    const outside = await makeTemporaryRoot();
+    const linkedParent = path.join(syncTemporaryRoot, "linked-transaction");
+    await fs.symlink(outside, linkedParent);
+    websiteArtifacts.push(linkedParent);
+    const before = await fs.readdir(outside);
+    const runner = vi.fn() as unknown as CodexRunner;
+
+    await expect(
+      runMetadataEnrichmentCli(
+        [
+          "--input",
+          path.join(linkedParent, "lesson.json"),
+          "--staging-parent",
+          linkedParent,
+        ],
+        { ...quietCli, runner, parentEnv: {} },
+      ),
+    ).rejects.toThrow(/symlink|physical|outside website root/i);
+    expect(runner).not.toHaveBeenCalled();
+    expect(await fs.readdir(outside)).toEqual(before);
+  });
+});
+
+describe("CLI input isolation", () => {
+  function unusedRunner() {
+    return vi.fn(async () => ({
+      exitCode: 0,
+      signal: null,
+      stdout: "",
+      stderr: "",
+      timedOut: false,
+    })) as unknown as CodexRunner;
+  }
+
+  async function expectRejectedBeforeStaging(
+    stagingParent: string,
+    inputFile: string,
+    expected: RegExp,
+    parentEnv: NodeJS.ProcessEnv = {},
+  ): Promise<void> {
+    const before = await fs.readdir(stagingParent);
+    const runner = unusedRunner();
+
+    await expect(
+      runMetadataEnrichmentCli(
+        [
+          "--input",
+          inputFile,
+          "--staging-parent",
+          stagingParent,
+        ],
+        {
+          runner,
+          parentEnv,
+          stdout: vi.fn(),
+          stderr: vi.fn(),
+        },
+      ),
+    ).rejects.toThrow(expected);
+    expect(runner).not.toHaveBeenCalled();
+    expect(await fs.readdir(stagingParent)).toEqual(before);
+  }
+
+  it("rejects an input file outside the supplied transaction", async () => {
+    const stagingParent = await makeWebsiteTransaction();
+    const outsideRoot = await makeTemporaryRoot();
+    const inputFile = path.join(outsideRoot, "lesson.json");
+    await fs.writeFile(inputFile, JSON.stringify(stagedLesson));
+
+    await expectRejectedBeforeStaging(
+      stagingParent,
+      inputFile,
+      /input.*inside.*staging parent|outside.*staging parent/i,
+    );
+  });
+
+  it("rejects an input file from AI_DAILY_SOURCE", async () => {
+    const stagingParent = await makeWebsiteTransaction();
+    const sourceRoot = await makeTemporaryRoot();
+    const inputFile = path.join(sourceRoot, "lesson.json");
+    await fs.writeFile(inputFile, JSON.stringify(stagedLesson));
+
+    await expectRejectedBeforeStaging(
+      stagingParent,
+      inputFile,
+      /input.*AI Daily source|input.*inside.*staging parent/i,
+      { AI_DAILY_SOURCE: sourceRoot },
+    );
+  });
+
+  it("rejects a symlink input without following it", async () => {
+    const stagingParent = await makeWebsiteTransaction();
+    const outsideRoot = await makeTemporaryRoot();
+    const outsideFile = path.join(outsideRoot, "lesson.json");
+    const inputFile = path.join(stagingParent, "lesson.json");
+    await fs.writeFile(outsideFile, JSON.stringify(stagedLesson));
+    await fs.symlink(outsideFile, inputFile);
+
+    await expectRejectedBeforeStaging(
+      stagingParent,
+      inputFile,
+      /input.*symlink|regular non-symlink/i,
+    );
+  });
+
+  it("rejects a directory input", async () => {
+    const stagingParent = await makeWebsiteTransaction();
+    const inputFile = path.join(stagingParent, "lesson.json");
+    await fs.mkdir(inputFile);
+
+    await expectRejectedBeforeStaging(
+      stagingParent,
+      inputFile,
+      /input.*regular non-symlink file/i,
+    );
+  });
+
+  it("rejects an input larger than 2 MiB", async () => {
+    const stagingParent = await makeWebsiteTransaction();
+    const inputFile = path.join(stagingParent, "lesson.json");
+    await fs.writeFile(inputFile, Buffer.alloc(2 * 1024 * 1024 + 1, "x"));
+
+    await expectRejectedBeforeStaging(
+      stagingParent,
+      inputFile,
+      /input.*exceeds.*2097152 bytes/i,
     );
   });
 });

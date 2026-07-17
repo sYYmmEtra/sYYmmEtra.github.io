@@ -11,6 +11,11 @@ import {
   validateEnrichment,
   type EnrichmentOutput,
 } from "./lib/metadata";
+import {
+  assertDisjointRoots,
+  assertSafeWritePath,
+  resolveExistingPath,
+} from "./lib/paths";
 
 const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SCHEMA_PATH = path.join(
@@ -19,6 +24,7 @@ const DEFAULT_SCHEMA_PATH = path.join(
 );
 const DEFAULT_PROMPT_PATH = path.join(SCRIPT_DIRECTORY, "metadata-prompt.md");
 const MAX_OUTPUT_BYTES = 64 * 1024;
+const MAX_CLI_INPUT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
 export const StagedLessonInputSchema = z
@@ -517,8 +523,8 @@ export const CLI_HELP = `Usage:
   npm run metadata:enrich -- --input <lesson.json> --staging-parent <directory> [--timeout-ms <milliseconds>]
 
 Arguments:
-  --input <lesson.json>          Minimized schemaVersion 1 lesson record.
-  --staging-parent <directory>   Existing website-transaction staging directory.
+  --input <lesson.json>          Existing minimized schemaVersion 1 record inside --staging-parent (max 2 MiB).
+  --staging-parent <directory>   Existing physical transaction directory strictly below <website>/.sync-tmp/.
   --timeout-ms <milliseconds>    Optional positive timeout; defaults to 120000.
   --help                         Show this help.
 
@@ -528,6 +534,13 @@ interface CliArguments {
   input: string;
   stagingParent: string;
   timeoutMs?: number;
+}
+
+export interface MetadataEnrichmentCliOptions {
+  runner?: CodexRunner;
+  parentEnv?: NodeJS.ProcessEnv;
+  stdout?: (message: string) => void;
+  stderr?: (message: string) => void;
 }
 
 function parseCliArguments(argv: readonly string[]): CliArguments | "help" {
@@ -574,55 +587,223 @@ function parseCliArguments(argv: readonly string[]): CliArguments | "help" {
   return { input, stagingParent, ...(timeoutMs === undefined ? {} : { timeoutMs }) };
 }
 
-function assertCliStagingPath(parent: string, target: string): void {
-  if (target === parent) {
-    return;
-  }
-  if (!isWithin(parent, target)) {
-    throw new Error("Staging path is outside the supplied staging parent");
-  }
-}
-
-async function readCliLesson(inputFile: string): Promise<StagedLessonInput> {
-  return StagedLessonInputSchema.parse(
-    JSON.parse(await fs.readFile(inputFile, "utf8")),
+function isPhysicalDescendant(parent: string, candidate: string): boolean {
+  const relative = path.relative(parent, candidate);
+  return (
+    relative !== "" &&
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
   );
 }
 
-async function main(): Promise<void> {
+async function requirePhysicalDirectory(
+  target: string,
+  description: string,
+): Promise<void> {
+  const stat = await fs.lstat(target);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error(`${description} must be an existing physical directory`);
+  }
+}
+
+async function resolveCliStagingParent(
+  websiteRoot: string,
+  requestedParent: string,
+  parentEnv: NodeJS.ProcessEnv,
+): Promise<string> {
+  const requested = path.resolve(requestedParent);
+  await requirePhysicalDirectory(requested, "Staging parent");
+  const physicalParent = resolveExistingPath(requested);
+
+  const sourceRootValue = parentEnv.AI_DAILY_SOURCE;
+  if (sourceRootValue) {
+    const sourceRoot = resolveExistingPath(sourceRootValue);
+    try {
+      assertDisjointRoots(physicalParent, sourceRoot);
+    } catch {
+      throw new Error("Staging parent must not overlap the AI Daily source");
+    }
+  }
+
+  const syncTemporaryRoot = path.join(websiteRoot, ".sync-tmp");
+  await requirePhysicalDirectory(
+    syncTemporaryRoot,
+    "Website .sync-tmp root",
+  );
+  const physicalSyncTemporaryRoot = resolveExistingPath(syncTemporaryRoot);
+
+  try {
+    assertSafeWritePath(websiteRoot, physicalParent);
+  } catch {
+    throw new Error(
+      "Staging parent must be a physical directory strictly inside website .sync-tmp",
+    );
+  }
+  if (!isPhysicalDescendant(physicalSyncTemporaryRoot, physicalParent)) {
+    throw new Error(
+      "Staging parent must be a physical directory strictly inside website .sync-tmp",
+    );
+  }
+
+  return physicalParent;
+}
+
+function assertCliStagingPath(parent: string, target: string): void {
+  if (path.resolve(target) === parent) {
+    return;
+  }
+  assertSafeWritePath(parent, target);
+}
+
+async function readCliLesson(
+  websiteRoot: string,
+  stagingParent: string,
+  requestedInput: string,
+  parentEnv: NodeJS.ProcessEnv,
+): Promise<StagedLessonInput> {
+  const inputFile = path.resolve(requestedInput);
+  let initialStat;
+  try {
+    initialStat = await fs.lstat(inputFile);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") {
+      throw new Error(
+        "CLI input must be an existing regular non-symlink file",
+      );
+    }
+    throw error;
+  }
+  if (initialStat.isSymbolicLink() || !initialStat.isFile()) {
+    throw new Error("CLI input must be a regular non-symlink file");
+  }
+  if (initialStat.size > MAX_CLI_INPUT_BYTES) {
+    throw new Error(`CLI input exceeds ${MAX_CLI_INPUT_BYTES} bytes`);
+  }
+
+  const physicalInput = resolveExistingPath(inputFile);
+  const sourceRootValue = parentEnv.AI_DAILY_SOURCE;
+  if (sourceRootValue) {
+    const sourceRoot = resolveExistingPath(sourceRootValue);
+    try {
+      assertDisjointRoots(physicalInput, sourceRoot);
+    } catch {
+      throw new Error("CLI input must not overlap the AI Daily source");
+    }
+  }
+
+  try {
+    assertSafeWritePath(websiteRoot, physicalInput);
+    assertSafeWritePath(stagingParent, physicalInput);
+  } catch {
+    throw new Error(
+      "CLI input must be strictly inside the supplied staging parent",
+    );
+  }
+
+  let handle;
+  try {
+    handle = await fs.open(
+      physicalInput,
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+  } catch (error) {
+    if (errorCode(error) === "ELOOP") {
+      throw new Error("CLI input must be a regular non-symlink file");
+    }
+    throw error;
+  }
+
+  let content: Buffer;
+  try {
+    const openedStat = await handle.stat();
+    if (!openedStat.isFile()) {
+      throw new Error("CLI input must be a regular non-symlink file");
+    }
+    if (
+      openedStat.dev !== initialStat.dev ||
+      openedStat.ino !== initialStat.ino
+    ) {
+      throw new Error("CLI input changed while it was being opened");
+    }
+    if (openedStat.size > MAX_CLI_INPUT_BYTES) {
+      throw new Error(`CLI input exceeds ${MAX_CLI_INPUT_BYTES} bytes`);
+    }
+    content = await handle.readFile();
+  } finally {
+    await handle.close();
+  }
+
+  if (content.byteLength > MAX_CLI_INPUT_BYTES) {
+    throw new Error(`CLI input exceeds ${MAX_CLI_INPUT_BYTES} bytes`);
+  }
+  return StagedLessonInputSchema.parse(JSON.parse(content.toString("utf8")));
+}
+
+export async function runMetadataEnrichmentCli(
+  argv: readonly string[],
+  options: MetadataEnrichmentCliOptions = {},
+): Promise<number> {
+  const stdout = options.stdout ?? console.log;
+  const stderr = options.stderr ?? console.error;
   let parsed: CliArguments | "help";
   try {
-    parsed = parseCliArguments(process.argv.slice(2));
+    parsed = parseCliArguments(argv);
   } catch (error) {
-    console.error(`${asProcessError(error).message}\n\n${CLI_HELP}`);
-    process.exitCode = 2;
-    return;
+    stderr(`${asProcessError(error).message}\n\n${CLI_HELP}`);
+    return 2;
   }
 
   if (parsed === "help") {
-    console.log(CLI_HELP);
-    return;
+    stdout(CLI_HELP);
+    return 0;
   }
 
+  const parentEnv = options.parentEnv ?? process.env;
+  const websiteRoot = resolveExistingPath(
+    path.resolve(SCRIPT_DIRECTORY, ".."),
+  );
+  const stagingParent = await resolveCliStagingParent(
+    websiteRoot,
+    parsed.stagingParent,
+    parentEnv,
+  );
   const inputFile = path.resolve(parsed.input);
-  const stagingParent = await fs.realpath(parsed.stagingParent);
-  const lesson = await readCliLesson(inputFile);
+  const lesson = await readCliLesson(
+    websiteRoot,
+    stagingParent,
+    inputFile,
+    parentEnv,
+  );
   const result = await enrichMetadata({
     stagingParent,
     assertSafeStagingPath: (target) =>
       assertCliStagingPath(stagingParent, target),
     lesson,
     readCurrentSourceHash: async () =>
-      (await readCliLesson(inputFile)).sourceHash,
+      (
+        await readCliLesson(
+          websiteRoot,
+          stagingParent,
+          inputFile,
+          parentEnv,
+        )
+      ).sourceHash,
+    runner: options.runner,
+    parentEnv,
     timeoutMs: parsed.timeoutMs,
   });
 
   if (!result.ok) {
-    console.error(`${result.reason}: ${result.message}`);
-    process.exitCode = 1;
-    return;
+    stderr(`${result.reason}: ${result.message}`);
+    return 1;
   }
-  console.log(JSON.stringify(result.value, null, 2));
+  stdout(JSON.stringify(result.value, null, 2));
+  return 0;
+}
+
+async function main(): Promise<void> {
+  process.exitCode = await runMetadataEnrichmentCli(process.argv.slice(2));
 }
 
 const invokedPath = process.argv[1]
