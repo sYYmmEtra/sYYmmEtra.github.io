@@ -1,0 +1,24 @@
+id: lesson-0008
+source:
+  file: lessons/2026-07-12.md
+  section: 1
+  hash: sha256:e6b2169088233fe83f21e233f578205c74bfbd4769d057f9426b111a08e1495b
+lesson: 8
+date: 2026-07-12
+track: B
+depth: L3
+titleZh: KV Cache 与注意力变体（MHA→MQA→GQA→MLA）
+titleEn: "KV Cache and Attention Variants: MHA, MQA, GQA, and MLA"
+summaryZh: 复访升级day2注意力L2→L3(推理侧工程)。自回归decode把过去token不变的K/V缓存复用=KV Cache,省的是重复投影的巨大常数(非O(n²)阶数),只cache K/V因Q用完即弃;账单巨大(70B/128K/MHA≈328GB);核心第一性原理:decode是内存带宽受限(算术强度低)→每步延迟≈读一遍KV Cache→KV缩k倍≈decode快k倍;四代同轴=多少Q头共享多少份K/V:MHA(n头各一份)→MQA(全共享1份,砍n倍但质量掉/训练不稳)→GQA(分G组组内共享,事实标准,GQA-8省87.5%质量掉<1%)→MLA(不减头,改低秩隐向量c现场还原K/V,压缩vs MHA 7-14×/vs GQA 2.7-4.7×,难点=RoPE不可与压缩交换故解耦劈成带位置/NoPE两段);误区:GQA非砍头是共享KV头、压缩比看基准(vs MHA还是GQA、含不含量化)
+summaryEn: KV caching reuses earlier keys and values during autoregressive decoding, reducing repeated projection work while creating a large memory-bandwidth cost. The lesson compares MHA, MQA, GQA, and MLA as different sharing or compression strategies, clarifies their quality and memory tradeoffs, and explains MLA's positional-encoding complication.
+slug: kv-cache-attention-variants
+tags:
+  - kv-cache
+  - attention
+  - gqa
+  - mla
+sourceStatus: unreviewed
+sourceStatusHash: sha256:e6b2169088233fe83f21e233f578205c74bfbd4769d057f9426b111a08e1495b
+metadataStatus: current
+metadataSourceHash: sha256:e6b2169088233fe83f21e233f578205c74bfbd4769d057f9426b111a08e1495b
+featured: false

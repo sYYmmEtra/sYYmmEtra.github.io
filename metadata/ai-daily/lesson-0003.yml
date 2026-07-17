@@ -1,0 +1,23 @@
+id: lesson-0003
+source:
+  file: lessons/2026-07-07.md
+  section: 1
+  hash: sha256:1902f94e2045fbe5fc5aaa22fa0394bffe000cb60c20809b1a71bf91e1c41782
+lesson: 3
+date: 2026-07-07
+track: C
+depth: L2
+titleZh: 测试时计算与推理模型（Test-Time Compute & Reasoning Models）
+titleEn: Test-Time Compute and Reasoning Models
+summaryZh: 额外算力砸在推理而非参数；两家族=序贯(长CoT/RL,用token换深度) 与 并行(采N条+验证器选优)；coverage 随N对数线性增长但坏验证器致收益反转；compute-optimal 按题目难度自适应分配，本质是对固定模型的后处理、逼不出未知知识
+summaryEn: Test-time compute spends additional inference resources without changing model parameters. The lesson contrasts sequential long reasoning with parallel sampling and verification, explains why weak verifiers can reverse scaling gains, and motivates difficulty-aware allocation while emphasizing that extra inference cannot create knowledge absent from the model.
+slug: test-time-compute-reasoning-models
+tags:
+  - test-time-compute
+  - reasoning-models
+  - verifiers
+sourceStatus: unreviewed
+sourceStatusHash: sha256:1902f94e2045fbe5fc5aaa22fa0394bffe000cb60c20809b1a71bf91e1c41782
+metadataStatus: current
+metadataSourceHash: sha256:1902f94e2045fbe5fc5aaa22fa0394bffe000cb60c20809b1a71bf91e1c41782
+featured: false

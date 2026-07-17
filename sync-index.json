@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "lessons": [
+    {
+      "id": "lesson-0001",
+      "lesson": 1,
+      "source": {
+        "file": "lessons/2026-07-06.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:e74046d660a7fedec3671cd8ae668da7fbd7f5a0ee92f5a281a0ca02610ff9bb",
+      "slug": "prompt-engineering-foundations"
+    },
+    {
+      "id": "lesson-0002",
+      "lesson": 2,
+      "source": {
+        "file": "lessons/2026-07-06.md",
+        "section": 2
+      },
+      "sourceHash": "sha256:4a5b566d0951d7028fb37b190d9ed37b139efb404fa1e8e7ba958c3bba59d2e5",
+      "slug": "attention-transformer-architecture"
+    },
+    {
+      "id": "lesson-0003",
+      "lesson": 3,
+      "source": {
+        "file": "lessons/2026-07-07.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:1902f94e2045fbe5fc5aaa22fa0394bffe000cb60c20809b1a71bf91e1c41782",
+      "slug": "test-time-compute-reasoning-models"
+    },
+    {
+      "id": "lesson-0004",
+      "lesson": 4,
+      "source": {
+        "file": "lessons/2026-07-08.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:d4bd7b6d3d33fdfbbb7a2dfb415654190e70a3dfdbe85c6bac145d51be1cddab",
+      "slug": "structured-outputs-function-calling"
+    },
+    {
+      "id": "lesson-0005",
+      "lesson": 5,
+      "source": {
+        "file": "lessons/2026-07-09.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:0cb945ea5c7204217dad547fdc4a4ec4420f801e293231a751ee69f0ad3d6806",
+      "slug": "gradient-descent-backpropagation-optimizers"
+    },
+    {
+      "id": "lesson-0006",
+      "lesson": 6,
+      "source": {
+        "file": "lessons/2026-07-10.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:8581854e458641c2b9bc261da6f8c29c5dcaa1d43ed6405d6f48624273d9760a",
+      "slug": "mixture-of-experts-sparse-routing"
+    },
+    {
+      "id": "lesson-0007",
+      "lesson": 7,
+      "source": {
+        "file": "lessons/2026-07-11.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:8a1fa6e1bc5fafd113107498acefca2ca053589940497d526f8327f29d8223b8",
+      "slug": "rag-foundations-retrieval-pipeline"
+    },
+    {
+      "id": "lesson-0008",
+      "lesson": 8,
+      "source": {
+        "file": "lessons/2026-07-12.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:e6b2169088233fe83f21e233f578205c74bfbd4769d057f9426b111a08e1495b",
+      "slug": "kv-cache-attention-variants"
+    },
+    {
+      "id": "lesson-0009",
+      "lesson": 9,
+      "source": {
+        "file": "lessons/2026-07-13.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:2d745eae20d172bb54479ca45e0f1d8db5e6c4c868aa46a97a66d053b3e63294",
+      "slug": "verifier-reward-model-engineering"
+    },
+    {
+      "id": "lesson-0010",
+      "lesson": 10,
+      "source": {
+        "file": "lessons/2026-07-14.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:8d4804f9e263b5b1fc02c46500a82b927fb06d53895433c26b770bfc089e6ec4",
+      "slug": "advanced-rag-retrieval-engineering"
+    },
+    {
+      "id": "lesson-0011",
+      "lesson": 11,
+      "source": {
+        "file": "lessons/2026-07-15.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:f5abf138d03f4633fb4bf282e59e08921be0b8fcb9a277cfb44b1080279f3d5f",
+      "slug": "embeddings-contrastive-learning"
+    },
+    {
+      "id": "lesson-0012",
+      "lesson": 12,
+      "source": {
+        "file": "lessons/2026-07-16.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:898bd1ca0adf885bf8ea6ea112a01de9b86ce267b2955ae3814720363e9601cb",
+      "slug": "moe-expert-parallelism-distributed-training"
+    },
+    {
+      "id": "lesson-0013",
+      "lesson": 13,
+      "source": {
+        "file": "lessons/2026-07-17.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:48409f105f1e545dc5aab14b7eefc53e2c9df97d4bdbf49cb086f6dc34536f0c",
+      "slug": "constrained-decoding-format-tax-tool-routing"
+    }
+  ]
+}

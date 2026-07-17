@@ -1,0 +1,23 @@
+id: lesson-0005
+source:
+  file: lessons/2026-07-09.md
+  section: 1
+  hash: sha256:0cb945ea5c7204217dad547fdc4a4ec4420f801e293231a751ee69f0ad3d6806
+lesson: 5
+date: 2026-07-09
+track: B
+depth: L2
+titleZh: 梯度下降、反向传播与优化器（SGD / Adam / LR 调度）
+titleEn: Gradient Descent, Backpropagation, and Optimizers
+summaryZh: 反向传播=链式法则在计算图上一趟前向+一趟反向，与参数量无关地算出全部梯度(≠更新)；SGD 沿−∇走小步、噪声反助跳出尖锐极小值；动量=梯度EMA加惯性；Adam=一阶矩(方向)+二阶矩(每参数自适应步长 m̂/√v̂ 把梯度归一化到±1量级)+偏差校正，实际用解耦权重衰减的AdamW，代价是2×状态显存；LR调度=warmup防冷启动炸膛+cosine decay防终点刹不住
+summaryEn: Backpropagation applies the chain rule across a computation graph to obtain every parameter gradient before any update occurs. The lesson compares SGD, momentum, Adam, and AdamW, including moment estimates, bias correction, optimizer-state memory, and learning-rate schedules that combine warmup with gradual decay for stable training.
+slug: gradient-descent-backpropagation-optimizers
+tags:
+  - backpropagation
+  - optimization
+  - adamw
+sourceStatus: unreviewed
+sourceStatusHash: sha256:0cb945ea5c7204217dad547fdc4a4ec4420f801e293231a751ee69f0ad3d6806
+metadataStatus: current
+metadataSourceHash: sha256:0cb945ea5c7204217dad547fdc4a4ec4420f801e293231a751ee69f0ad3d6806
+featured: false

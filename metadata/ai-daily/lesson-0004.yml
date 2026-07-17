@@ -1,0 +1,23 @@
+id: lesson-0004
+source:
+  file: lessons/2026-07-08.md
+  section: 1
+  hash: sha256:d4bd7b6d3d33fdfbbb7a2dfb415654190e70a3dfdbe85c6bac145d51be1cddab
+lesson: 4
+date: 2026-07-08
+track: A
+depth: L2
+titleZh: 结构化输出与 Function Calling / Tool Use
+titleEn: Structured Outputs, Function Calling, and Tool Use
+summaryZh: 模型不"执行"函数，只生成符合 schema 的结构化文本(JSON)，host 代码才执行；可靠性靠受约束解码=每步用 schema编译的CFG语法把非法token的logit置-∞，保证结构合法(≠语义正确)；两段式：先当填表员发tool_call，host执行后再当解说员；核心张力=格式税(过早锁JSON挤压推理)
+summaryEn: Models do not execute functions; they emit structured text that host code validates and runs. This lesson explains schema-constrained decoding, the difference between syntactic validity and semantic correctness, the two-stage tool-call workflow, and the format tax created when rigid output constraints suppress useful reasoning.
+slug: structured-outputs-function-calling
+tags:
+  - structured-output
+  - function-calling
+  - tool-use
+sourceStatus: unreviewed
+sourceStatusHash: sha256:d4bd7b6d3d33fdfbbb7a2dfb415654190e70a3dfdbe85c6bac145d51be1cddab
+metadataStatus: current
+metadataSourceHash: sha256:d4bd7b6d3d33fdfbbb7a2dfb415654190e70a3dfdbe85c6bac145d51be1cddab
+featured: false

@@ -1,0 +1,23 @@
+id: lesson-0006
+source:
+  file: lessons/2026-07-10.md
+  section: 1
+  hash: sha256:8581854e458641c2b9bc261da6f8c29c5dcaa1d43ed6405d6f48624273d9760a
+lesson: 6
+date: 2026-07-10
+track: C
+depth: L2
+titleZh: 混合专家 MoE（稀疏激活与路由）
+titleEn: "Mixture-of-Experts: Sparse Activation and Routing"
+summaryZh: MoE 把 FFN 子层换成"N个专家FFN+路由器"，token 只走 top-K 个→解耦总参数(容量)与激活参数(算力)，671B总参只激活37B；路由=softmax(x·Wg)选topK再加权求和；核心痛点=路由塌方(正反馈致少数专家被垄断)+容量上限致token dropping；均衡三代=辅助损失(有干扰梯度、跷跷板难调)→无损失偏置法(DeepSeek,用b_i调度选择、原始s打分,不污染梯度,已成标准)→结构性(细粒度+共享专家)；关键澄清:省算力不省显存,通信(all-to-all)与显存才是真账单,专家≠学科
+summaryEn: "Mixture-of-Experts replaces a dense feed-forward layer with routed expert networks, separating total parameter capacity from per-token computation. The lesson covers top-k routing, expert collapse, capacity limits, token dropping, load-balancing strategies, shared experts, and the crucial tradeoff: sparse activation reduces compute but not model-weight memory or communication."
+slug: mixture-of-experts-sparse-routing
+tags:
+  - mixture-of-experts
+  - sparse-activation
+  - routing
+sourceStatus: unreviewed
+sourceStatusHash: sha256:8581854e458641c2b9bc261da6f8c29c5dcaa1d43ed6405d6f48624273d9760a
+metadataStatus: current
+metadataSourceHash: sha256:8581854e458641c2b9bc261da6f8c29c5dcaa1d43ed6405d6f48624273d9760a
+featured: false

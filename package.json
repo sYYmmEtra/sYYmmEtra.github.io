@@ -7,6 +7,7 @@
     "dev": "astro dev",
     "test": "vitest run",
     "test:watch": "vitest",
+    "sync": "tsx scripts/sync-ai-daily.ts",
     "metadata:enrich": "tsx scripts/enrich-metadata.ts",
     "build:astro": "astro build",
     "search:index": "pagefind --site dist",

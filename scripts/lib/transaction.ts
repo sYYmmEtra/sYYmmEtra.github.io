@@ -235,6 +235,10 @@ export interface SyncTransactionOptions {
   websiteRoot: string;
   writer(candidate: SyncCandidatePaths): void | Promise<void>;
   validator(candidate: SyncCandidatePaths): void | Promise<void>;
+  /** Runs after candidate validation and immediately before backups or installs. */
+  beforeCommit?(): void | Promise<void>;
+  /** Runs after all destinations are installed but before the transaction commits. */
+  beforeFinalize?(): void | Promise<void>;
   /** Test seam for deterministic rollback coverage; called after each rename. */
   afterCommitStep?(step: SyncCommitStep): void | Promise<void>;
   /** Narrow fault seam called immediately before a guarded filesystem mutation. */
@@ -737,6 +741,7 @@ export async function withSyncTransaction(
       candidateRoot,
       canonicalCandidate,
     );
+    await options.beforeCommit?.();
 
     for (const destination of destinations) {
       assertTransactionPath(websiteRoot, destination.candidate);
@@ -792,7 +797,9 @@ export async function withSyncTransaction(
       });
     }
 
-    // Explicit commit point: all three candidate projections are installed.
+    await options.beforeFinalize?.();
+
+    // Explicit commit point: all three candidate projections are installed and finalized.
     committed = true;
   } catch (error) {
     if (committed || !syncTmpReady) {

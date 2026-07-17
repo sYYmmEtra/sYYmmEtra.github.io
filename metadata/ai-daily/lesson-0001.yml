@@ -1,0 +1,22 @@
+id: lesson-0001
+source:
+  file: lessons/2026-07-06.md
+  section: 1
+  hash: sha256:e74046d660a7fedec3671cd8ae668da7fbd7f5a0ee92f5a281a0ca02610ff9bb
+lesson: 1
+date: 2026-07-06
+track: A
+depth: L1
+titleZh: 提示工程基础与常用模式
+titleEn: Prompt Engineering Foundations and Common Patterns
+summaryZh: prompt 是在条件化自回归分布；四招本质=定位任务(few-shot)/用token换算力(CoT)/结构拆解(分解)/推理集成(自一致性)
+summaryEn: "Prompting conditions an autoregressive model rather than programming a deterministic system. The lesson connects few-shot examples, chain-of-thought, task decomposition, and self-consistency to four practical goals: locating the task, spending tokens on reasoning, breaking structure apart, and aggregating multiple reasoning paths."
+slug: prompt-engineering-foundations
+tags:
+  - prompt-engineering
+  - chain-of-thought
+sourceStatus: unreviewed
+sourceStatusHash: sha256:e74046d660a7fedec3671cd8ae668da7fbd7f5a0ee92f5a281a0ca02610ff9bb
+metadataStatus: current
+metadataSourceHash: sha256:e74046d660a7fedec3671cd8ae668da7fbd7f5a0ee92f5a281a0ca02610ff9bb
+featured: false

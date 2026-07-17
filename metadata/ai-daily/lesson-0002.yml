@@ -1,0 +1,22 @@
+id: lesson-0002
+source:
+  file: lessons/2026-07-06.md
+  section: 2
+  hash: sha256:4a5b566d0951d7028fb37b190d9ed37b139efb404fa1e8e7ba958c3bba59d2e5
+lesson: 2
+date: 2026-07-06
+track: B
+depth: L2
+titleZh: 注意力机制与 Transformer 架构
+titleEn: Attention Mechanisms and Transformer Architecture
+summaryZh: 自注意力=softmax(QKᵀ/√d)·V，一次基于内容的软性检索；QKV 同源投影，√d 补偿点积方差防 softmax 饱和，因果掩码即"只看前文"，O(n²) 是瓶颈
+summaryEn: Self-attention performs content-based soft retrieval with scaled query-key scores and value aggregation. This lesson explains shared QKV projections, why scaling prevents softmax saturation, how causal masking restricts access to earlier tokens, and why the quadratic sequence-length cost becomes the central architectural bottleneck.
+slug: attention-transformer-architecture
+tags:
+  - attention
+  - transformers
+sourceStatus: unreviewed
+sourceStatusHash: sha256:4a5b566d0951d7028fb37b190d9ed37b139efb404fa1e8e7ba958c3bba59d2e5
+metadataStatus: current
+metadataSourceHash: sha256:4a5b566d0951d7028fb37b190d9ed37b139efb404fa1e8e7ba958c3bba59d2e5
+featured: false

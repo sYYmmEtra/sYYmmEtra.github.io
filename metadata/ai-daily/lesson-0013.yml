@@ -1,0 +1,24 @@
+id: lesson-0013
+source:
+  file: lessons/2026-07-17.md
+  section: 1
+  hash: sha256:48409f105f1e545dc5aab14b7eefc53e2c9df97d4bdbf49cb086f6dc34536f0c
+lesson: 13
+date: 2026-07-17
+track: A
+depth: L3
+titleZh: 结构化输出与 Function Calling / Tool Use
+titleEn: Constrained Decoding, Format Tax, and Tool Routing
+summaryZh: 复访升级day4 L2→L3(编译细节+格式税实测+路由)。JSON嵌套非正则语言,须CFG/下推自动机(PDA)才能"记住"括号深度,而非纯FSM;编译管线=schema→一次性编译(20-50ms)出grammar/PDA→逐token按当前state把非法token logit置-∞;xgrammar靠vocab partitioning+adaptive mask caching把per-token开销压到近0,缓存命中后约束解码有时反而比无约束更快。格式税机制说清:grammar mask会在某些解码位置直接吃掉"该调用工具"的token,模型被迫塌陷成安全默认值——真实案例schema合法率99.4%但11%语义已跑偏,schema只保证格式不保证质量。MCP规模工具膨胀(50个工具=2-4万token固定prefill+选错率上升)把"塞哪些工具schema"变成day7/10的检索问题翻版,history-aware路由器(依赖图+多轮轨迹)是新解法
+summaryEn: Constrained decoding compiles nested schemas into grammar-aware state machines that mask invalid tokens at each step. This lesson examines efficient mask caching, the format tax that can preserve valid JSON while distorting tool semantics, and history-aware tool routing as a retrieval problem when large tool catalogs overwhelm context and selection quality.
+slug: constrained-decoding-format-tax-tool-routing
+tags:
+  - constrained-decoding
+  - structured-output
+  - tool-routing
+  - mcp
+sourceStatus: unreviewed
+sourceStatusHash: sha256:48409f105f1e545dc5aab14b7eefc53e2c9df97d4bdbf49cb086f6dc34536f0c
+metadataStatus: current
+metadataSourceHash: sha256:48409f105f1e545dc5aab14b7eefc53e2c9df97d4bdbf49cb086f6dc34536f0c
+featured: true
