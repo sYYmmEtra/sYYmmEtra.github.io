@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "sourceHash", "titleEn", "summaryEn", "tags"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^lesson-(?:0{3}[1-9]|0{2}[1-9][0-9]|0[1-9][0-9]{2}|[1-9][0-9]{3,})$"
+    },
+    "sourceHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "titleEn": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 120
+    },
+    "summaryEn": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 600
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      }
+    }
+  }
+}
