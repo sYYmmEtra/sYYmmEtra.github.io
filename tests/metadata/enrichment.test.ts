@@ -470,6 +470,144 @@ describe("CLI input isolation", () => {
   });
 });
 
+describe("source-path canonicalization policy", () => {
+  async function expectLessonPathRejected(
+    parentEnv: NodeJS.ProcessEnv,
+    exposedPath: string,
+  ): Promise<void> {
+    const root = await makeTemporaryRoot();
+    const stagingParent = path.join(root, "transaction-staging");
+    await fs.mkdir(stagingParent, { mode: 0o700 });
+    const runner = vi.fn(async () => ({
+      exitCode: 0,
+      signal: null,
+      stdout: "",
+      stderr: "",
+      timedOut: false,
+    })) as unknown as CodexRunner;
+
+    await expect(
+      enrichMetadata({
+        stagingParent,
+        assertSafeStagingPath() {},
+        lesson: {
+          ...stagedLesson,
+          bodyMarkdown: `Do not expose ${exposedPath}/lessons/2026-07-17.md`,
+        },
+        readCurrentSourceHash: async () => HASH_A,
+        runner,
+        schemaPath,
+        prompt: await fs.readFile(promptPath, "utf8"),
+        parentEnv,
+      }),
+    ).rejects.toThrow(/must not expose the AI Daily source path/i);
+    expect(runner).not.toHaveBeenCalled();
+    expect(await fs.readdir(stagingParent)).toEqual([]);
+  }
+
+  it("handles lexical dot-dot source spelling across env, invocation, and staged input", async () => {
+    const root = await makeTemporaryRoot();
+    const sourceRoot = path.join(root, "source-root");
+    const nested = path.join(sourceRoot, "nested");
+    await fs.mkdir(nested, { recursive: true });
+    const canonicalSource = await fs.realpath(sourceRoot);
+    const lexicalSource = `${nested}${path.sep}..`;
+    const canonicalSecret = path.join(canonicalSource, "lessons", "secret.md");
+    const parentEnv = {
+      AI_DAILY_SOURCE: lexicalSource,
+      CANONICAL_SECRET: canonicalSecret,
+      UNRELATED_VALUE: "kept",
+    };
+
+    const invocation = buildCodexInvocation({
+      stagingDir: path.join(root, "website-staging"),
+      outputFile: path.join(root, "website-staging", "output.json"),
+      schemaPath,
+      prompt: "fixed prompt",
+      parentEnv,
+    });
+
+    expect(invocation.env).not.toHaveProperty("AI_DAILY_SOURCE");
+    expect(invocation.env).not.toHaveProperty("CANONICAL_SECRET");
+    expect(invocation.env.UNRELATED_VALUE).toBe("kept");
+    expect(() =>
+      buildCodexInvocation({
+        stagingDir: path.join(root, "website-staging"),
+        outputFile: path.join(root, "website-staging", "output.json"),
+        schemaPath: canonicalSecret,
+        prompt: "fixed prompt",
+        parentEnv,
+      }),
+    ).toThrow(/must not expose the AI Daily source path/i);
+    await expectLessonPathRejected(parentEnv, canonicalSource);
+  });
+
+  it("handles a symlink AI_DAILY_SOURCE alias when values expose its physical realpath", async () => {
+    const root = await makeTemporaryRoot();
+    const physicalSource = path.join(root, "physical-source");
+    const sourceAlias = path.join(root, "source-alias");
+    await fs.mkdir(physicalSource);
+    await fs.symlink(physicalSource, sourceAlias);
+    const physicalSecret = path.join(physicalSource, "private", "secret.md");
+    const parentEnv = {
+      AI_DAILY_SOURCE: sourceAlias,
+      PHYSICAL_SECRET: physicalSecret,
+      UNRELATED_VALUE: "kept",
+    };
+
+    const invocation = buildCodexInvocation({
+      stagingDir: path.join(root, "website-staging"),
+      outputFile: path.join(root, "website-staging", "output.json"),
+      schemaPath,
+      prompt: "fixed prompt",
+      parentEnv,
+    });
+
+    expect(invocation.env).not.toHaveProperty("AI_DAILY_SOURCE");
+    expect(invocation.env).not.toHaveProperty("PHYSICAL_SECRET");
+    expect(invocation.env.UNRELATED_VALUE).toBe("kept");
+    expect(() =>
+      buildCodexInvocation({
+        stagingDir: path.join(root, "website-staging"),
+        outputFile: path.join(root, "website-staging", "output.json"),
+        schemaPath,
+        prompt: `Read only ${physicalSecret}`,
+        parentEnv,
+      }),
+    ).toThrow(/must not expose the AI Daily source path/i);
+    await expectLessonPathRejected(parentEnv, physicalSource);
+  });
+
+  it("physically removes an unrelated-text symlink alias that resolves inside the source root", async () => {
+    const root = await makeTemporaryRoot();
+    const sourceRoot = path.join(root, "source-root");
+    const sourceChild = path.join(sourceRoot, "private-tools");
+    const sourceChildAlias = path.join(root, "tool-alias");
+    const safeBin = path.join(root, "safe-bin");
+    await fs.mkdir(sourceChild, { recursive: true });
+    await fs.mkdir(safeBin);
+    await fs.symlink(sourceChild, sourceChildAlias);
+    expect(sourceChildAlias).not.toContain(sourceRoot);
+
+    const invocation = buildCodexInvocation({
+      stagingDir: path.join(root, "website-staging"),
+      outputFile: path.join(root, "website-staging", "output.json"),
+      schemaPath,
+      prompt: "fixed prompt",
+      parentEnv: {
+        AI_DAILY_SOURCE: sourceRoot,
+        ALIASED_TOOL_HOME: sourceChildAlias,
+        TOOL_PATH: `${safeBin}${path.delimiter}${sourceChildAlias}`,
+        UNRELATED_VALUE: "kept",
+      },
+    });
+
+    expect(invocation.env).not.toHaveProperty("ALIASED_TOOL_HOME");
+    expect(invocation.env.TOOL_PATH).toBe(safeBin);
+    expect(invocation.env.UNRELATED_VALUE).toBe("kept");
+  });
+});
+
 describe("Codex invocation and process runner", () => {
   it("builds the exact hardened argv, stdin prompt, and sanitized environment", () => {
     const sourcePath = "/private/source/ai-daily";

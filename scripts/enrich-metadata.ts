@@ -1,4 +1,4 @@
-import { constants } from "node:fs";
+import { constants, realpathSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -59,17 +59,128 @@ export interface BuildCodexInvocationOptions {
   parentEnv?: NodeJS.ProcessEnv;
 }
 
-function removeKnownSourcePathFromEnvironment(
-  environment: NodeJS.ProcessEnv,
+interface SourcePathPolicy {
+  textVariants: readonly string[];
+  absoluteRoots: readonly string[];
+}
+
+function tryResolvePhysicalPath(value: string): string | undefined {
+  let ancestor = path.resolve(value);
+  const missingSuffix: string[] = [];
+
+  while (true) {
+    try {
+      return path.resolve(realpathSync(ancestor), ...missingSuffix);
+    } catch (error) {
+      const code = errorCode(error);
+      if (code !== "ENOENT" && code !== "ENOTDIR") {
+        return undefined;
+      }
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) {
+        return undefined;
+      }
+      missingSuffix.unshift(path.basename(ancestor));
+      ancestor = parent;
+    }
+  }
+}
+
+function unique(values: readonly (string | undefined)[]): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function createSourcePathPolicy(
   sourcePath: string | undefined,
+): SourcePathPolicy | undefined {
+  if (!sourcePath) {
+    return undefined;
+  }
+
+  const resolvedSource = path.resolve(sourcePath);
+  const physicalSource = tryResolvePhysicalPath(sourcePath);
+  return {
+    textVariants: unique([sourcePath, resolvedSource, physicalSource]),
+    absoluteRoots: unique([resolvedSource, physicalSource]),
+  };
+}
+
+function isEqualOrDescendant(parent: string, candidate: string): boolean {
+  const relative = path.relative(parent, candidate);
+  return (
+    relative === "" ||
+    (relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative))
+  );
+}
+
+function absolutePathExposesSource(
+  policy: SourcePathPolicy,
+  value: string,
+): boolean {
+  if (!path.isAbsolute(value)) {
+    return false;
+  }
+  const candidatePaths = unique([
+    path.resolve(value),
+    tryResolvePhysicalPath(value),
+  ]);
+  return policy.absoluteRoots.some((sourceRoot) =>
+    candidatePaths.some((candidate) =>
+      isEqualOrDescendant(sourceRoot, candidate),
+    ),
+  );
+}
+
+function valueExposesSource(
+  policy: SourcePathPolicy,
+  value: string,
+): boolean {
+  if (policy.textVariants.some((variant) => value.includes(variant))) {
+    return true;
+  }
+  if (absolutePathExposesSource(policy, value)) {
+    return true;
+  }
+
+  const absoluteTokens = value.match(/\/[^\s"'`<>|\\]+/g) ?? [];
+  return absoluteTokens.some((candidate) =>
+    absolutePathExposesSource(policy, candidate),
+  );
+}
+
+function isPathLikeEnvironmentKey(key: string): boolean {
+  return key === "PATH" || key.endsWith("PATH") || key.endsWith("PATHS");
+}
+
+function sanitizeEnvironment(
+  environment: NodeJS.ProcessEnv,
+  policy: SourcePathPolicy | undefined,
 ): void {
   delete environment.AI_DAILY_SOURCE;
-  if (!sourcePath) {
+  if (!policy) {
     return;
   }
 
   for (const [key, value] of Object.entries(environment)) {
-    if (value?.includes(sourcePath)) {
+    if (value === undefined) {
+      continue;
+    }
+    if (isPathLikeEnvironmentKey(key) && value.includes(path.delimiter)) {
+      const safeEntries = value
+        .split(path.delimiter)
+        .filter(
+          (entry) => entry === "" || !valueExposesSource(policy, entry),
+        );
+      if (safeEntries.length === 0) {
+        delete environment[key];
+      } else {
+        environment[key] = safeEntries.join(path.delimiter);
+      }
+      continue;
+    }
+    if (valueExposesSource(policy, value)) {
       delete environment[key];
     }
   }
@@ -79,7 +190,9 @@ export function buildCodexInvocation(
   options: BuildCodexInvocationOptions,
 ): CodexInvocation {
   const parentEnvironment = options.parentEnv ?? process.env;
-  const knownSourcePath = parentEnvironment.AI_DAILY_SOURCE;
+  const sourcePolicy = createSourcePathPolicy(
+    parentEnvironment.AI_DAILY_SOURCE,
+  );
   const exposedValues = [
     options.stagingDir,
     options.outputFile,
@@ -87,14 +200,14 @@ export function buildCodexInvocation(
     options.prompt,
   ];
   if (
-    knownSourcePath &&
-    exposedValues.some((value) => value.includes(knownSourcePath))
+    sourcePolicy &&
+    exposedValues.some((value) => valueExposesSource(sourcePolicy, value))
   ) {
     throw new Error("Codex invocation must not expose the AI Daily source path");
   }
 
   const environment = { ...parentEnvironment };
-  removeKnownSourcePathFromEnvironment(environment, knownSourcePath);
+  sanitizeEnvironment(environment, sourcePolicy);
   environment.PWD = options.stagingDir;
 
   return {
@@ -419,10 +532,12 @@ export async function enrichMetadata(
   const prompt =
     options.prompt ?? (await fs.readFile(DEFAULT_PROMPT_PATH, "utf8"));
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const knownSourcePath = (options.parentEnv ?? process.env).AI_DAILY_SOURCE;
+  const sourcePolicy = createSourcePathPolicy(
+    (options.parentEnv ?? process.env).AI_DAILY_SOURCE,
+  );
   if (
-    knownSourcePath &&
-    JSON.stringify(lesson).includes(knownSourcePath)
+    sourcePolicy &&
+    valueExposesSource(sourcePolicy, JSON.stringify(lesson))
   ) {
     throw new Error("Staged lesson must not expose the AI Daily source path");
   }
