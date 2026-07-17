@@ -12,12 +12,25 @@ import {
 const fixtureRoot = path.resolve("tests/fixtures/lessons");
 const temporaryRoots: string[] = [];
 
-async function writeTemporaryLesson(source: string): Promise<string> {
+async function writeTemporaryLessons(
+  files: Record<string, string>,
+): Promise<string> {
   const root = await fs.mkdtemp(path.join(tmpdir(), "personal-blog-lessons-"));
-  const file = path.join(root, "2026-07-06.md");
   temporaryRoots.push(root);
-  await fs.writeFile(file, source, "utf8");
-  return file;
+  await Promise.all(
+    Object.entries(files).map(([filename, source]) =>
+      fs.writeFile(path.join(root, filename), source, "utf8"),
+    ),
+  );
+  return root;
+}
+
+async function writeTemporaryLesson(
+  source: string,
+  filename = "2026-07-06.md",
+): Promise<string> {
+  const root = await writeTemporaryLessons({ [filename]: source });
+  return path.join(root, filename);
 }
 
 afterEach(async () => {
@@ -32,6 +45,19 @@ describe("lesson discovery", () => {
 
     expect(files.map((file) => path.basename(file))).toEqual([
       "2026-07-06.md",
+    ]);
+  });
+
+  it("excludes calendar-invalid date filenames", async () => {
+    const root = await writeTemporaryLessons({
+      "2026-02-28.md": "# 📅 Valid",
+      "2026-02-30.md": "# 📅 Invalid",
+    });
+
+    const files = await discoverLessonFiles(root);
+
+    expect(files.map((file) => path.basename(file))).toEqual([
+      "2026-02-28.md",
     ]);
   });
 });
@@ -94,6 +120,46 @@ describe("lesson splitting", () => {
     expect(segments[0]?.raw).toContain("# 📅 2026-07-06 — 波浪线代码示例");
   });
 
+  it("ignores H1 lesson headings nested inside list items", async () => {
+    const file = await writeTemporaryLesson(
+      [
+        "# 📅 2026-07-06 — 根课程一",
+        "正文",
+        "",
+        "- 列表项",
+        "",
+        "  # 📅 2026-07-06 — 嵌套课程",
+        "",
+        "# 📅 2026-07-06 — 根课程二",
+      ].join("\n"),
+    );
+
+    const segments = await splitLessonSegments(file);
+
+    expect(segments.map((segment) => segment.titleZh)).toEqual([
+      "根课程一",
+      "根课程二",
+    ]);
+    expect(segments[0]?.raw).toContain("  # 📅 2026-07-06 — 嵌套课程");
+  });
+
+  it("does not treat a backtick-containing info string as a fence opener", async () => {
+    const file = await writeTemporaryLesson(
+      [
+        "# 📅 2026-07-06 — 第一课",
+        "```bad`info",
+        "# 📅 2026-07-06 — 第二课",
+      ].join("\n"),
+    );
+
+    const segments = await splitLessonSegments(file);
+
+    expect(segments.map((segment) => segment.titleZh)).toEqual([
+      "第一课",
+      "第二课",
+    ]);
+  });
+
   it("recognizes up to three leading spaces but not four", async () => {
     const file = await writeTemporaryLesson(
       [
@@ -148,6 +214,16 @@ describe("lesson splitting", () => {
     expect(withSegment?.raw).toBe("# 📅 2026-07-06 — 有换行\n正文\n");
   });
 
+  it("preserves segment offsets after astral emoji content", async () => {
+    const first = "# 📅 2026-07-06 — 第一课\n😀 astral content\n";
+    const second = "# 📅 2026-07-06 — 第二课\n正文";
+    const file = await writeTemporaryLesson(`${first}${second}`);
+
+    const segments = await splitLessonSegments(file);
+
+    expect(segments.map((segment) => segment.raw)).toEqual([first, second]);
+  });
+
   it("returns source metadata, Chinese titles, and hashes of normalized segments", async () => {
     const segments = await splitLessonSegments(
       path.join(fixtureRoot, "2026-07-06.md"),
@@ -167,6 +243,8 @@ describe("lesson splitting", () => {
         titleZh: "注意力机制与 Transformer 架构",
       },
     ]);
+    expect(segments[0]).not.toHaveProperty("lesson");
+    expect(segments[1]?.lesson).toBe(2);
 
     for (const segment of segments) {
       const expectedHash = createHash("sha256")
@@ -175,5 +253,35 @@ describe("lesson splitting", () => {
       expect(segment.hash).toBe(`sha256:${expectedHash}`);
       expect(segment.hash).toMatch(/^sha256:[0-9a-f]{64}$/);
     }
+  });
+
+  it("extracts a separate explicit lesson number and preserves dots inside the topic", async () => {
+    const titleZh =
+      "进阶 RAG 检索工程（Hybrid · RRF · Rerank · Contextual Retrieval）";
+    const source = `# 📅 2026-07-14 · 讲10 · 轨道A · ${titleZh} · 深度 L3\n正文`;
+    const file = await writeTemporaryLesson(source, "2026-07-14.md");
+
+    const [segment] = await splitLessonSegments(file);
+
+    expect(segment).toMatchObject({
+      date: "2026-07-14",
+      lesson: 10,
+      titleZh,
+      raw: source,
+    });
+  });
+
+  it("reports malformed structured headings with file and section context", async () => {
+    const file = await writeTemporaryLesson(
+      [
+        "# 📅 2026-07-06 — 第一课",
+        "正文",
+        "# 📅 2026-07-06 · 轨道A · 缺少深度",
+      ].join("\n"),
+    );
+
+    await expect(splitLessonSegments(file)).rejects.toThrow(
+      /malformed structured lesson heading.*2026-07-06\.md.*section 2/i,
+    );
   });
 });
