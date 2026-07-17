@@ -1009,6 +1009,46 @@ describe("Codex invocation and process runner", () => {
     expect(stdin).toBe("prompt via stdin");
   });
 
+  it("preserves child spawn errors that occur before termination begins", async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = vi.fn(() => true);
+    const spawnError = Object.assign(new Error("spawn codex ENOENT"), {
+      code: "ENOENT",
+    });
+
+    const resultPromise = runCodexProcess(
+      {
+        command: "codex",
+        args: ["exec", "-"],
+        cwd: "/tmp/staging",
+        env: {},
+        stdin: "prompt",
+        shell: false,
+        outputFile: "/tmp/staging/output.json",
+      },
+      { timeoutMs: 1_000, spawnImpl: (() => child) as never },
+    );
+    child.emit("error", spawnError);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      exitCode: null,
+      signal: null,
+      timedOut: false,
+      reaped: true,
+      mayBeAlive: false,
+      error: spawnError,
+    });
+    expect(child.kill).not.toHaveBeenCalled();
+  });
+
   it("caps oversized stdout and stderr with deterministic truncation markers", async () => {
     const child = new EventEmitter() as EventEmitter & {
       stdin: PassThrough;
@@ -1087,6 +1127,61 @@ describe("Codex invocation and process runner", () => {
     expect(child.kill).toHaveBeenCalledWith("SIGTERM");
   });
 
+  it("treats asynchronous child errors during termination as diagnostic until the bounded reap deadline", async () => {
+    vi.useFakeTimers();
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+      exitCode: number | null;
+      signalCode: NodeJS.Signals | null;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = vi.fn((signal) => {
+      if (signal === "SIGTERM") {
+        queueMicrotask(() => {
+          child.emit("error", new Error("kill failed asynchronously"));
+        });
+      }
+      return true;
+    });
+
+    const resultPromise = runCodexProcess(
+      {
+        command: "codex",
+        args: ["exec", "-"],
+        cwd: "/tmp/staging",
+        env: {},
+        stdin: "prompt",
+        shell: false,
+        outputFile: "/tmp/staging/output.json",
+      },
+      {
+        timeoutMs: 25,
+        terminateGraceMs: 10,
+        reapTimeoutMs: 10,
+        spawnImpl: (() => child) as never,
+      },
+    );
+    await vi.advanceTimersByTimeAsync(45);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      timedOut: true,
+      reaped: false,
+      mayBeAlive: true,
+      error: expect.objectContaining({
+        message: "kill failed asynchronously",
+      }),
+    });
+    expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
+    expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+  });
+
   it.each([
     ["returns false", () => false],
     ["throws", () => { throw new Error("kill failed"); }],
@@ -1145,6 +1240,54 @@ describe("Codex invocation and process runner", () => {
     expect(child.stderr.destroyed).toBe(true);
   });
 
+  it("keeps a safe error sink after forcing settlement of an unreaped child", async () => {
+    vi.useFakeTimers();
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+      exitCode: number | null;
+      signalCode: NodeJS.Signals | null;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = vi.fn(() => true);
+
+    const resultPromise = runCodexProcess(
+      {
+        command: "codex",
+        args: ["exec", "-"],
+        cwd: "/tmp/staging",
+        env: {},
+        stdin: "prompt",
+        shell: false,
+        outputFile: "/tmp/staging/output.json",
+      },
+      {
+        timeoutMs: 25,
+        terminateGraceMs: 10,
+        reapTimeoutMs: 10,
+        spawnImpl: (() => child) as never,
+      },
+    );
+    await vi.advanceTimersByTimeAsync(45);
+    const result = await resultPromise;
+
+    expect(() => {
+      child.emit("error", new Error("late child error"));
+    }).not.toThrow();
+    expect(result).toMatchObject({
+      timedOut: true,
+      reaped: false,
+      mayBeAlive: true,
+    });
+    expect(result.error).toBeUndefined();
+  });
+
   it("settles a never-close child as safely dead when exit state becomes observable", async () => {
     vi.useFakeTimers();
     const child = new EventEmitter() as EventEmitter & {
@@ -1188,7 +1331,7 @@ describe("Codex invocation and process runner", () => {
 
     await expect(resultPromise).resolves.toMatchObject({
       timedOut: true,
-      reaped: false,
+      reaped: true,
       mayBeAlive: false,
     });
   });

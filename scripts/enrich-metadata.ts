@@ -426,6 +426,7 @@ export async function runCodexProcess(
     let stderrTruncated = false;
     let timedOut = false;
     let settled = false;
+    let terminationStarted = false;
     let terminationError: (Error & { code?: string }) | undefined;
     let terminateTimer: NodeJS.Timeout | undefined;
     let reapTimer: NodeJS.Timeout | undefined;
@@ -445,6 +446,10 @@ export async function runCodexProcess(
     child.stdin?.on("error", () => {
       // Process exit/error is authoritative; EPIPE on stdin is only a symptom.
     });
+
+    const ignoreLateChildError = () => {
+      // A forced-unreaped child may emit after the result has settled.
+    };
 
     const finish = (
       exitCode: number | null,
@@ -467,12 +472,15 @@ export async function runCodexProcess(
       if (reapTimer !== undefined) {
         clearTimeout(reapTimer);
       }
+      child.removeListener("error", onChildError);
+      child.removeListener("close", onChildClose);
       if (state.forced) {
+        if (state.reaped === false || state.mayBeAlive === true) {
+          child.on("error", ignoreLateChildError);
+        }
         child.stdin?.destroy();
         child.stdout?.destroy();
         child.stderr?.destroy();
-        child.removeAllListeners("error");
-        child.removeAllListeners("close");
       }
       resolve({
         exitCode,
@@ -488,6 +496,7 @@ export async function runCodexProcess(
 
     const timeout = setTimeout(() => {
       timedOut = true;
+      terminationStarted = true;
       try {
         if (!child.kill("SIGTERM")) {
           terminationError = new Error("SIGTERM could not be delivered");
@@ -509,7 +518,7 @@ export async function runCodexProcess(
           const signal = child.signalCode ?? null;
           const mayBeAlive = exitCode === null && signal === null;
           finish(exitCode, signal, terminationError, {
-            reaped: false,
+            reaped: !mayBeAlive,
             mayBeAlive,
             forced: true,
           });
@@ -520,18 +529,28 @@ export async function runCodexProcess(
     }, options.timeoutMs);
     timeout.unref();
 
-    child.once("error", (error) => {
-      finish(null, null, asProcessError(error), {
+    const onChildError = (error: Error) => {
+      const processError = asProcessError(error);
+      if (terminationStarted) {
+        terminationError ??= processError;
+        return;
+      }
+      finish(null, null, processError, {
         reaped: true,
         mayBeAlive: false,
       });
-    });
-    child.once("close", (exitCode, signal) => {
-      finish(exitCode, signal, undefined, {
+    };
+    const onChildClose = (
+      exitCode: number | null,
+      signal: NodeJS.Signals | null,
+    ) => {
+      finish(exitCode, signal, terminationError, {
         reaped: true,
         mayBeAlive: false,
       });
-    });
+    };
+    child.on("error", onChildError);
+    child.once("close", onChildClose);
     child.stdin?.end(invocation.stdin, "utf8");
   });
 }
