@@ -1,0 +1,78 @@
+---
+import { dictionaries, type Locale } from "../data/i18n";
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = "en" } = Astro.props;
+const copy = dictionaries[locale];
+---
+
+<button
+  class="theme-toggle control"
+  id="theme-toggle"
+  type="button"
+  aria-label={`${copy.theme.currentSystem}. ${copy.theme.light}`}
+  title={copy.theme.currentSystem}
+  data-system-label={copy.theme.currentSystem}
+  data-light-label={copy.theme.currentLight}
+  data-dark-label={copy.theme.currentDark}
+  data-system-action={copy.theme.system}
+  data-light-action={copy.theme.light}
+  data-dark-action={copy.theme.dark}
+>
+  <span aria-hidden="true" class="theme-toggle__icon">◐</span>
+  <span class="visually-hidden" data-theme-state>{copy.theme.currentSystem}</span>
+</button>
+
+<script is:inline>
+  const toggle = document.querySelector("#theme-toggle");
+  const root = document.documentElement;
+  const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const nextPreference = { system: "light", light: "dark", dark: "system" };
+
+  const currentPreference = () => {
+    const preference = root.dataset.themePreference;
+    return preference === "light" || preference === "dark" ? preference : "system";
+  };
+
+  const resolvedTheme = (preference) =>
+    preference === "system" ? (colorScheme.matches ? "dark" : "light") : preference;
+
+  const updateToggle = () => {
+    const preference = currentPreference();
+    const next = nextPreference[preference];
+    const label = toggle?.dataset[`${preference}Label`] ?? "";
+    const action = toggle?.dataset[`${next}Action`] ?? "";
+    toggle?.setAttribute("aria-label", `${label}. ${action}`);
+    toggle?.setAttribute("title", label);
+    const state = toggle?.querySelector("[data-theme-state]");
+    if (state) state.textContent = label;
+  };
+
+  const applyPreference = (preference) => {
+    root.dataset.themePreference = preference;
+    root.dataset.theme = resolvedTheme(preference);
+    updateToggle();
+  };
+
+  applyPreference(currentPreference());
+  toggle?.addEventListener("click", () => {
+    const preference = nextPreference[currentPreference()];
+    applyPreference(preference);
+    try {
+      if (preference === "system") {
+        localStorage.removeItem("theme");
+      } else {
+        localStorage.setItem("theme", preference);
+      }
+    } catch {
+      // A private browsing policy must not make the control unusable.
+    }
+  });
+
+  colorScheme.addEventListener("change", () => {
+    if (currentPreference() === "system") applyPreference("system");
+  });
+</script>

@@ -1,21 +1,16 @@
 ---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { site } from "../data/site";
 import "katex/dist/katex.min.css";
 
-const title = "sYYmmEtra — Personal Blog";
+// This only verifies the collection's build-time contract. Task 7 owns Home
+// page content and sections.
+const lessons = await getCollection("aiDaily");
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <title>{title}</title>
-  </head>
-  <body>
-    <main>
-      <h1>sYYmmEtra</h1>
-      <p>Personal notes on software, artificial intelligence, and learning.</p>
-      <p lang="zh-Hans">关于软件、人工智能与学习的个人笔记。</p>
-    </main>
-  </body>
-</html>
+<BaseLayout title={`${site.name} — Personal Blog`}>
+  <section class="site-foundation" data-content-entries={lessons.length}>
+    <span class="visually-hidden">Site foundation</span>
+  </section>
+</BaseLayout>

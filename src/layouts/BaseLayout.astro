@@ -1,0 +1,60 @@
+---
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import { en, type Locale } from "../data/i18n";
+import { site } from "../data/site";
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  locale?: Locale;
+}
+
+const {
+  title = site.name,
+  description = site.description,
+  locale = "en",
+} = Astro.props;
+const language = locale === "zh-CN" ? "zh-CN" : "en";
+const canonicalUrl = new URL(Astro.url.pathname, site.siteUrl);
+const copy = locale === "zh-CN" ? (await import("../data/i18n")).zhCN : en;
+---
+
+<!doctype html>
+<html lang={language} data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="canonical" href={canonicalUrl} />
+    <title>{title}</title>
+    <script is:inline>
+      (() => {
+        const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+        try {
+          const stored = localStorage.getItem("theme");
+          const preference = stored === "dark" || stored === "light" || stored === "system"
+            ? stored
+            : "system";
+          document.documentElement.dataset.themePreference = preference;
+          document.documentElement.dataset.theme = preference === "system"
+            ? colorScheme.matches ? "dark" : "light"
+            : preference;
+        } catch {
+          document.documentElement.dataset.themePreference = "system";
+          document.documentElement.dataset.theme = colorScheme.matches ? "dark" : "light";
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">{copy.navigation.skipToContent}</a>
+    <SiteHeader locale={locale} />
+    <main class="site-main reading-shell" id="main-content">
+      <slot />
+    </main>
+    <SiteFooter />
+  </body>
+</html>

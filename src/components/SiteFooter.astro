@@ -1,0 +1,11 @@
+---
+import { site } from "../data/site";
+---
+
+<footer class="site-footer">
+  <div class="reading-shell site-footer__inner">
+    <span>© {new Date().getFullYear()} {site.name}</span>
+    <a href={site.githubUrl}>GitHub</a>
+    <a href={`mailto:${site.email}`}>{site.email}</a>
+  </div>
+</footer>
