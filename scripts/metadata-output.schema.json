@@ -15,8 +15,7 @@
     "titleEn": {
       "type": "string",
       "minLength": 4,
-      "maxLength": 120,
-      "pattern": "\\S"
+      "maxLength": 120
     },
     "summaryEn": {
       "type": "string",

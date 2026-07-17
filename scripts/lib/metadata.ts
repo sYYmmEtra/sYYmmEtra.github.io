@@ -184,7 +184,7 @@ function sourceDate(file: string): string {
   return file.slice("lessons/".length, -".md".length);
 }
 
-export const SidecarMetadataSchema = SidecarBaseSchema.superRefine(
+const SidecarIdentitySchema = SidecarBaseSchema.superRefine(
   (sidecar, context) => {
     if (sidecar.id !== canonicalLessonId(sidecar.lesson)) {
       context.addIssue({
@@ -207,7 +207,11 @@ export const SidecarMetadataSchema = SidecarBaseSchema.superRefine(
         message: "Source review status must be bound to the current source hash",
       });
     }
+  },
+);
 
+export const SidecarMetadataSchema = SidecarIdentitySchema.superRefine(
+  (sidecar, context) => {
     const hasNoEnglishSet =
       sidecar.titleEn === null &&
       sidecar.summaryEn === null &&
@@ -467,8 +471,9 @@ export interface ResolvedMetadataDisplay {
 export function resolveMetadataDisplay(
   value: SidecarMetadata,
 ): ResolvedMetadataDisplay {
-  const sidecar = SidecarMetadataSchema.parse(value);
+  const sidecar = SidecarIdentitySchema.parse(value);
   const englishIsCurrent =
+    SidecarMetadataSchema.safeParse(sidecar).success &&
     sidecar.metadataStatus === "current" &&
     sidecar.metadataSourceHash === sidecar.source.hash &&
     sidecar.titleEn !== null &&

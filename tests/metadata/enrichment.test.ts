@@ -260,12 +260,6 @@ describe("checked-in output schema", () => {
           type: "string",
           pattern: ENRICHMENT_CONSTRAINTS.sourceHashPattern,
         },
-        titleEn: {
-          type: "string",
-          minLength: ENRICHMENT_CONSTRAINTS.titleMinLength,
-          maxLength: ENRICHMENT_CONSTRAINTS.titleMaxLength,
-          pattern: "\\S",
-        },
         summaryEn: {
           type: "string",
           minLength: ENRICHMENT_CONSTRAINTS.summaryMinLength,
@@ -282,6 +276,11 @@ describe("checked-in output schema", () => {
           },
         },
       },
+    });
+    expect(schema.properties.titleEn).toEqual({
+      type: "string",
+      minLength: ENRICHMENT_CONSTRAINTS.titleMinLength,
+      maxLength: ENRICHMENT_CONSTRAINTS.titleMaxLength,
     });
     expect(Object.keys(schema.properties)).toEqual([
       "id",

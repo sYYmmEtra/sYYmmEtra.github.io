@@ -396,7 +396,7 @@ describe("slug and display behavior", () => {
     });
   });
 
-  it("rejects a current marker with a mismatched metadata hash", () => {
+  it("falls back to Chinese for a current marker with a mismatched metadata hash", () => {
     const mismatched = {
       ...currentSidecar(),
       source: { ...currentSidecar().source, hash: HASH_B },
@@ -404,19 +404,40 @@ describe("slug and display behavior", () => {
       sourceStatusHash: HASH_B,
     } as SidecarMetadata;
 
-    expect(() => resolveMetadataDisplay(mismatched)).toThrow(
-      /current metadata must be bound/i,
-    );
+    expect(resolveMetadataDisplay(mismatched)).toEqual({
+      title: mismatched.titleZh,
+      summary: mismatched.summaryZh,
+      tags: [],
+      language: "zh",
+      languageState: "original-in-chinese",
+      originalInChinese: true,
+    });
   });
 
-  it("rejects invalid current metadata with empty tags", () => {
+  it("falls back to Chinese for invalid current metadata with empty tags", () => {
     const invalid = {
       ...currentSidecar(),
       tags: [],
     } as SidecarMetadata;
 
+    expect(resolveMetadataDisplay(invalid)).toEqual({
+      title: invalid.titleZh,
+      summary: invalid.summaryZh,
+      tags: [],
+      language: "zh",
+      languageState: "original-in-chinese",
+      originalInChinese: true,
+    });
+  });
+
+  it("rejects a sidecar whose stable identity disagrees with its lesson", () => {
+    const invalid = {
+      ...currentSidecar(),
+      id: "lesson-0012",
+    } as SidecarMetadata;
+
     expect(() => resolveMetadataDisplay(invalid)).toThrow(
-      /complete English metadata set/i,
+      /ID must be canonical for its lesson number/i,
     );
   });
 
