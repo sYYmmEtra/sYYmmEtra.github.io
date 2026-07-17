@@ -1,1 +1,8 @@
 .DS_Store
+node_modules/
+dist/
+.astro/
+.pagefind/
+.sync-tmp/
+playwright-report/
+test-results/

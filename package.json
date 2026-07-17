@@ -1,0 +1,42 @@
+{
+  "name": "syymmetra-personal-blog",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:astro": "astro build",
+    "search:index": "pagefind --site dist",
+    "build": "npm run build:astro && npm run search:index",
+    "preview": "astro preview",
+    "sync": "tsx scripts/sync-ai-daily.ts",
+    "metadata:enrich": "tsx scripts/enrich-metadata.ts",
+    "publish": "tsx scripts/publish.ts",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.2.1",
+    "@astrojs/rss": "^4.0.19",
+    "@astrojs/sitemap": "^3.7.3",
+    "astro": "^7.1.0",
+    "gray-matter": "^4.0.3",
+    "katex": "^0.17.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.61.1",
+    "fast-glob": "^3.3.3",
+    "linkinator": "^7.6.1",
+    "pagefind": "^1.5.2",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
