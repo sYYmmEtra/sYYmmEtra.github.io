@@ -149,11 +149,16 @@ export function assertNoUnexpectedRemovals(
 }
 
 export interface SyncCandidatePaths {
-  metadata: string;
-  content: string;
-  index: string;
-  assertSafeWritePath(target: string): void;
+  readonly metadata: string;
+  readonly content: string;
+  readonly index: string;
+  readonly assertSafeWritePath: (target: string) => void;
 }
+
+type CandidateProjectionPaths = Pick<
+  SyncCandidatePaths,
+  "metadata" | "content" | "index"
+>;
 
 export type SyncDestination = "metadata" | "content" | "index";
 export type SyncCommitPhase = "backup" | "install";
@@ -259,7 +264,7 @@ async function validateCandidateEntry(
 async function validateCandidateProjection(
   websiteRoot: string,
   candidateRoot: string,
-  candidate: SyncCandidatePaths,
+  candidate: CandidateProjectionPaths,
 ): Promise<void> {
   const metadata = await fs.lstat(candidate.metadata);
   if (metadata.isSymbolicLink()) {
@@ -408,32 +413,37 @@ export async function withSyncTransaction(
   const backupRoot = path.join(transactionRoot, "backup");
   await safeMkdir(websiteRoot, candidateRoot, { recursive: true });
 
-  const candidate: SyncCandidatePaths = {
+  const canonicalCandidate: CandidateProjectionPaths = {
     metadata: path.join(candidateRoot, "metadata"),
     content: path.join(candidateRoot, "src/content/ai-daily"),
     index: path.join(candidateRoot, "sync-index.json"),
+  };
+  const candidate: SyncCandidatePaths = Object.freeze({
+    metadata: canonicalCandidate.metadata,
+    content: canonicalCandidate.content,
+    index: canonicalCandidate.index,
     assertSafeWritePath(target: string): void {
       assertTransactionPath(websiteRoot, target);
       assertWebsiteWritePath(candidateRoot, target);
     },
-  };
+  });
 
   const destinations: ProjectionDestination[] = [
     {
       name: "metadata",
-      candidate: candidate.metadata,
+      candidate: canonicalCandidate.metadata,
       current: path.join(websiteRoot, "metadata"),
       backup: path.join(backupRoot, "metadata"),
     },
     {
       name: "content",
-      candidate: candidate.content,
+      candidate: canonicalCandidate.content,
       current: path.join(websiteRoot, "src/content/ai-daily"),
       backup: path.join(backupRoot, "content"),
     },
     {
       name: "index",
-      candidate: candidate.index,
+      candidate: canonicalCandidate.index,
       current: path.join(websiteRoot, "sync-index.json"),
       backup: path.join(backupRoot, "sync-index.json"),
     },
@@ -443,12 +453,24 @@ export async function withSyncTransaction(
   const createdParents: string[] = [];
 
   try {
-    await safeMkdir(websiteRoot, candidate.metadata, { recursive: true });
-    await safeMkdir(websiteRoot, candidate.content, { recursive: true });
+    await safeMkdir(websiteRoot, canonicalCandidate.metadata, {
+      recursive: true,
+    });
+    await safeMkdir(websiteRoot, canonicalCandidate.content, {
+      recursive: true,
+    });
     await options.writer(candidate);
-    await validateCandidateProjection(websiteRoot, candidateRoot, candidate);
+    await validateCandidateProjection(
+      websiteRoot,
+      candidateRoot,
+      canonicalCandidate,
+    );
     await options.validator(candidate);
-    await validateCandidateProjection(websiteRoot, candidateRoot, candidate);
+    await validateCandidateProjection(
+      websiteRoot,
+      candidateRoot,
+      canonicalCandidate,
+    );
 
     for (const destination of destinations) {
       assertTransactionPath(websiteRoot, destination.candidate);

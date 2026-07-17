@@ -226,6 +226,47 @@ describe("assertNoUnexpectedRemovals", () => {
 });
 
 describe("withSyncTransaction", () => {
+  it("freezes callback paths so mutation cannot redirect validation or commit", async () => {
+    const websiteRoot = await makeWebsiteRoot();
+
+    await withSyncTransaction({
+      websiteRoot,
+      writer: async (candidate) => {
+        const canonicalMetadata = candidate.metadata;
+        const redirectedMetadata = path.join(
+          path.dirname(canonicalMetadata),
+          "redirected-metadata",
+        );
+        await fs.mkdir(redirectedMetadata);
+        await writeFile(
+          path.join(redirectedMetadata, "lesson-redirected.yml"),
+          "redirected metadata\n",
+        );
+
+        const mutable = candidate as { metadata: string };
+        expect(() => {
+          mutable.metadata = redirectedMetadata;
+        }).toThrow(TypeError);
+        expect(Object.isFrozen(candidate)).toBe(true);
+        expect(candidate.metadata).toBe(canonicalMetadata);
+
+        await writeCandidate(candidate, "canonical");
+      },
+      validator: (candidate) => validateCandidate(candidate, "canonical"),
+    });
+
+    expect(
+      await fs.readFile(
+        path.join(websiteRoot, "metadata", "lesson-0002.yml"),
+        "utf8",
+      ),
+    ).toBe("canonical metadata\n");
+    await expect(
+      fs.stat(path.join(websiteRoot, "metadata", "lesson-redirected.yml")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expectNoTransactionArtifacts(websiteRoot);
+  });
+
   it("leaves the exact old projection intact when candidate validation fails", async () => {
     const websiteRoot = await makeWebsiteRoot();
     await seedProjection(websiteRoot);

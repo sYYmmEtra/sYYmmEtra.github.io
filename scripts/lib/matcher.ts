@@ -19,11 +19,63 @@ interface IndexedRow {
   normalizedTopic: string;
 }
 
+const PRESENTATION_PUNCTUATION = new Set([
+  ":",
+  "：",
+  ",",
+  "，",
+  ".",
+  "。",
+  ";",
+  "；",
+  "!",
+  "！",
+  "?",
+  "？",
+  "、",
+  "·",
+  "・",
+  "•",
+  "(",
+  ")",
+  "（",
+  "）",
+  "[",
+  "]",
+  "【",
+  "】",
+  "{",
+  "}",
+  "《",
+  "》",
+  "〈",
+  "〉",
+  '"',
+  "'",
+  "“",
+  "”",
+  "‘",
+  "’",
+  "`",
+  "-",
+  "‐",
+  "‑",
+  "‒",
+  "–",
+  "—",
+  "―",
+  "−",
+]);
+const WHITE_SPACE = /\p{White_Space}/u;
+
 function normalizeTopic(value: string): string {
-  return value
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[\p{White_Space}\p{Punctuation}]+/gu, "");
+  return [...value.normalize("NFKC").toLowerCase()]
+    .filter(
+      (character) =>
+        !WHITE_SPACE.test(character) &&
+        !PRESENTATION_PUNCTUATION.has(character),
+    )
+    .join("");
 }
 
 function describeSegment(segment: LessonSegment): string {
@@ -46,6 +98,28 @@ function stableLessonId(lesson: number): string {
   return `lesson-${String(lesson).padStart(4, "0")}`;
 }
 
+function assertValidLogRows(rows: readonly LearningLogRow[]): void {
+  const seenIds = new Map<string, number>();
+
+  rows.forEach((row, index) => {
+    const rowNumber = index + 1;
+    if (!Number.isSafeInteger(row.lesson) || row.lesson < 1) {
+      throw new Error(
+        `Invalid log lesson number ${String(row.lesson)} at log row ${rowNumber} (${row.date}, ${JSON.stringify(row.topic)})`,
+      );
+    }
+
+    const id = stableLessonId(row.lesson);
+    const previousIndex = seenIds.get(id);
+    if (previousIndex !== undefined) {
+      throw new Error(
+        `Duplicate lesson ID ${id} in log rows: log row ${previousIndex + 1} (${describeRow(rows[previousIndex]!)}) conflicts with log row ${rowNumber} (${describeRow(row)})`,
+      );
+    }
+    seenIds.set(id, index);
+  });
+}
+
 function groupByTopic<T extends { normalizedTopic: string }>(
   values: readonly T[],
 ): Map<string, T[]> {
@@ -64,6 +138,8 @@ export function matchSegmentsToLog(
   segments: readonly LessonSegment[],
   rows: readonly LearningLogRow[],
 ): MatchedLesson[] {
+  assertValidLogRows(rows);
+
   const indexedSegments: IndexedSegment[] = segments.map((value, index) => ({
     index,
     value,
@@ -165,35 +241,22 @@ export function matchSegmentsToLog(
       continue;
     }
 
-    const remainingSegmentGroups = groupByTopic(remainingSegments);
-    const remainingRowGroups = groupByTopic(remainingRows);
-    const completeTopicOrderMapping =
-      remainingSegments.length === remainingRows.length &&
-      [...remainingSegmentGroups].every(([topic, topicSegments]) => {
-        const topicRows = remainingRowGroups.get(topic);
-        return topic !== "" && topicRows?.length === topicSegments.length;
-      }) &&
-      [...remainingRowGroups].every(([topic, topicRows]) => {
-        const topicSegments = remainingSegmentGroups.get(topic);
-        return topic !== "" && topicSegments?.length === topicRows.length;
+    const completeOrderMapping =
+      remainingSegments.length > 0 &&
+      remainingSegments.length === remainingRows.length;
+
+    if (completeOrderMapping) {
+      const orderedSegments = [...remainingSegments].sort(
+        (left, right) =>
+          left.value.section - right.value.section || left.index - right.index,
+      );
+      const orderedRows = [...remainingRows].sort(
+        (left, right) => left.index - right.index,
+      );
+
+      orderedSegments.forEach((segment, index) => {
+        assign(segment, orderedRows[index]!);
       });
-
-    if (completeTopicOrderMapping) {
-      for (const [topic, topicSegments] of remainingSegmentGroups) {
-        const topicRows = remainingRowGroups.get(topic)!;
-        const orderedSegments = [...topicSegments].sort(
-          (left, right) =>
-            left.value.section - right.value.section ||
-            left.index - right.index,
-        );
-        const orderedRows = [...topicRows].sort(
-          (left, right) => left.index - right.index,
-        );
-
-        orderedSegments.forEach((segment, index) => {
-          assign(segment, orderedRows[index]!);
-        });
-      }
       continue;
     }
 

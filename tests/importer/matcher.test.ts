@@ -112,7 +112,7 @@ describe("matchSegmentsToLog", () => {
       .toThrow(/explicit lesson mapping.*lesson 99.*2026-07-08\.md.*section 4/is);
   });
 
-  it("rejects duplicate explicit lesson candidates", () => {
+  it("preflights duplicate explicit candidates as duplicate stable IDs", () => {
     const explicit = segment({ section: 2, lesson: 3, titleZh: "显式课程" });
     const rows = [
       row({ lesson: 3, topic: "候选一" }),
@@ -120,8 +120,29 @@ describe("matchSegmentsToLog", () => {
     ];
 
     expect(() => matchSegmentsToLog([explicit], rows)).toThrow(
-      /explicit lesson mapping.*lesson 3.*duplicate.*候选一.*候选二/is,
+      /duplicate lesson id.*lesson-0003.*log row 1.*log row 2/is,
     );
+  });
+
+  it("preflights duplicate stable IDs even when both rows are unused", () => {
+    const source = segment({ section: 1, titleZh: "已使用课程" });
+    const rows = [
+      row({ lesson: 1, topic: "已使用课程" }),
+      row({ lesson: 9, date: "2026-07-07", topic: "未使用一" }),
+      row({ lesson: 9, date: "2026-07-08", topic: "未使用二" }),
+    ];
+
+    expect(() => matchSegmentsToLog([source], rows)).toThrow(
+      /duplicate lesson id.*lesson-0009.*log row 2.*log row 3/is,
+    );
+  });
+
+  it("preflights non-positive and non-safe log lesson numbers", () => {
+    for (const lesson of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() =>
+        matchSegmentsToLog([], [row({ lesson, topic: "无效课程" })]),
+      ).toThrow(/invalid log lesson number.*log row 1/i);
+    }
   });
 
   it("rejects an explicit lesson whose log row has a conflicting date", () => {
@@ -149,17 +170,44 @@ describe("matchSegmentsToLog", () => {
       titleZh: "  Ｔｒａｎｓｆｏｒｍｅｒ：提示工程（基础）  ",
     });
     const log = row({ lesson: 8, topic: "transformer 提示工程 - 基础" });
+    const unrelated = row({ lesson: 9, topic: "其他主题" });
 
-    expect(matchSegmentsToLog([source], [log])[0]?.id).toBe("lesson-0008");
+    expect(matchSegmentsToLog([source], [log, unrelated])[0]?.id).toBe(
+      "lesson-0008",
+    );
   });
 
-  it("does not semantically fuzz a different topic", () => {
+  it("does not semantically fuzz when complete order fallback is unavailable", () => {
     const source = segment({ section: 1, titleZh: "提示工程基础" });
-    const log = row({ lesson: 1, topic: "提示工程进阶" });
+    const rows = [
+      row({ lesson: 1, topic: "提示工程进阶" }),
+      row({ lesson: 2, topic: "另一课程" }),
+    ];
 
-    expect(() => matchSegmentsToLog([source], [log])).toThrow(
+    expect(() => matchSegmentsToLog([source], rows)).toThrow(
       /unmatched lesson segment.*2026-07-06\.md.*section 1.*提示工程进阶/is,
     );
+  });
+
+  it("preserves semantic symbols instead of normalizing them away", () => {
+    const cases = [
+      { source: "C#", collapsed: "C" },
+      { source: "C++", collapsed: "C" },
+      { source: "A/B", collapsed: "AB" },
+      { source: "R&D", collapsed: "RD" },
+    ];
+
+    cases.forEach(({ source, collapsed }, index) => {
+      expect(() =>
+        matchSegmentsToLog(
+          [segment({ section: 1, titleZh: source })],
+          [
+            row({ lesson: 30 + index * 2, topic: collapsed }),
+            row({ lesson: 31 + index * 2, topic: "占位课程" }),
+          ],
+        ),
+      ).toThrow(/unmatched lesson segment/i);
+    });
   });
 
   it("restricts implicit candidates to the same date", () => {
@@ -195,6 +243,24 @@ describe("matchSegmentsToLog", () => {
     expect(matches.map((item) => item.id)).toEqual([
       "lesson-0012",
       "lesson-0011",
+    ]);
+  });
+
+  it("uses section order for a complete same-date set whose topics differ", () => {
+    const segments = [
+      segment({ section: 2, titleZh: "源主题二" }),
+      segment({ section: 1, titleZh: "源主题一" }),
+    ];
+    const rows = [
+      row({ lesson: 21, topic: "日志主题甲" }),
+      row({ lesson: 22, topic: "日志主题乙" }),
+    ];
+
+    const matches = matchSegmentsToLog(segments, rows);
+
+    expect(matches.map((item) => item.id)).toEqual([
+      "lesson-0022",
+      "lesson-0021",
     ]);
   });
 
