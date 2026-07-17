@@ -24,6 +24,8 @@ const DEFAULT_SCHEMA_PATH = path.join(
 );
 const DEFAULT_PROMPT_PATH = path.join(SCRIPT_DIRECTORY, "metadata-prompt.md");
 const MAX_OUTPUT_BYTES = 64 * 1024;
+const MAX_PROCESS_CAPTURE_BYTES = 64 * 1024;
+const PROCESS_CAPTURE_TRUNCATION_MARKER = "\n...[truncated]\n";
 const MAX_CLI_INPUT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -65,6 +67,8 @@ interface SourcePathPolicy {
 }
 
 const UNICODE_PATH_DELIMITER = /[\p{P}\p{S}]/u;
+const PATH_TEXT_CONTINUATION = /[\p{L}\p{N}\p{M}._~-]/u;
+const PATH_JOINER_DELIMITER = /[-._~]/u;
 
 function tryResolvePhysicalPath(value: string): string | undefined {
   let ancestor = path.resolve(value);
@@ -144,9 +148,19 @@ function absolutePathCandidates(value: string): string[] {
     let offset = 0;
     for (const codePoint of token) {
       if (offset > 0 && UNICODE_PATH_DELIMITER.test(codePoint)) {
-        const prefix = token.slice(0, offset);
-        if (path.isAbsolute(prefix)) {
-          candidates.push(prefix);
+        const remainder = token.slice(offset + codePoint.length);
+        const nextCodePoint = remainder[Symbol.iterator]().next().value as
+          | string
+          | undefined;
+        const joinsPathText =
+          PATH_JOINER_DELIMITER.test(codePoint) &&
+          nextCodePoint !== undefined &&
+          PATH_TEXT_CONTINUATION.test(nextCodePoint);
+        if (!joinsPathText) {
+          const prefix = token.slice(0, offset);
+          if (path.isAbsolute(prefix)) {
+            candidates.push(prefix);
+          }
         }
       }
       offset += codePoint.length;
@@ -156,11 +170,61 @@ function absolutePathCandidates(value: string): string[] {
   return unique(candidates);
 }
 
+function firstCodePoint(value: string): string | undefined {
+  return value[Symbol.iterator]().next().value as string | undefined;
+}
+
+function lastCodePoint(value: string): string | undefined {
+  let last: string | undefined;
+  for (const codePoint of value) {
+    last = codePoint;
+  }
+  return last;
+}
+
+function hasPathBoundaries(
+  value: string,
+  start: number,
+  variant: string,
+): boolean {
+  const before = lastCodePoint(value.slice(0, start));
+  const after = firstCodePoint(value.slice(start + variant.length));
+  const beforeIsBoundary =
+    before === undefined || !PATH_TEXT_CONTINUATION.test(before);
+  const afterIsBoundary =
+    variant.endsWith(path.sep) ||
+    variant.endsWith("/") ||
+    variant.endsWith("\\") ||
+    after === undefined ||
+    after === "/" ||
+    after === "\\" ||
+    !PATH_TEXT_CONTINUATION.test(after);
+  return beforeIsBoundary && afterIsBoundary;
+}
+
+function textContainsSourceVariant(
+  value: string,
+  variant: string,
+): boolean {
+  let start = value.indexOf(variant);
+  while (start !== -1) {
+    if (hasPathBoundaries(value, start, variant)) {
+      return true;
+    }
+    start = value.indexOf(variant, start + 1);
+  }
+  return false;
+}
+
 function valueExposesSource(
   policy: SourcePathPolicy,
   value: string,
 ): boolean {
-  if (policy.textVariants.some((variant) => value.includes(variant))) {
+  if (
+    policy.textVariants.some((variant) =>
+      textContainsSourceVariant(value, variant),
+    )
+  ) {
     return true;
   }
   if (absolutePathExposesSource(policy, value)) {
@@ -267,11 +331,15 @@ export interface CodexProcessResult {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  reaped?: boolean;
+  mayBeAlive?: boolean;
   error?: Error & { code?: string };
 }
 
 export interface RunCodexProcessOptions {
   timeoutMs: number;
+  terminateGraceMs?: number;
+  reapTimeoutMs?: number;
   spawnImpl?: typeof spawn;
 }
 
@@ -280,6 +348,47 @@ function asProcessError(error: unknown): Error & { code?: string } {
     return error;
   }
   return new Error(String(error));
+}
+
+function utf8Prefix(buffer: Buffer, maxBytes: number): string {
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let end = Math.min(buffer.byteLength, maxBytes);
+  while (end > 0) {
+    try {
+      return decoder.decode(buffer.subarray(0, end));
+    } catch {
+      end -= 1;
+    }
+  }
+  return "";
+}
+
+function appendProcessCapture(
+  current: string,
+  chunk: string,
+  alreadyTruncated: boolean,
+): { value: string; truncated: boolean } {
+  if (alreadyTruncated) {
+    return { value: current, truncated: true };
+  }
+  const combined = Buffer.concat([
+    Buffer.from(current, "utf8"),
+    Buffer.from(chunk, "utf8"),
+  ]);
+  if (combined.byteLength <= MAX_PROCESS_CAPTURE_BYTES) {
+    return { value: combined.toString("utf8"), truncated: false };
+  }
+
+  const markerBytes = Buffer.byteLength(
+    PROCESS_CAPTURE_TRUNCATION_MARKER,
+    "utf8",
+  );
+  return {
+    value:
+      utf8Prefix(combined, MAX_PROCESS_CAPTURE_BYTES - markerBytes) +
+      PROCESS_CAPTURE_TRUNCATION_MARKER,
+    truncated: true,
+  };
 }
 
 export async function runCodexProcess(
@@ -304,6 +413,8 @@ export async function runCodexProcess(
         stdout: "",
         stderr: "",
         timedOut: false,
+        reaped: true,
+        mayBeAlive: false,
         error: asProcessError(error),
       });
       return;
@@ -311,16 +422,25 @@ export async function runCodexProcess(
 
     let stdout = "";
     let stderr = "";
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
     let timedOut = false;
     let settled = false;
+    let terminationError: (Error & { code?: string }) | undefined;
+    let terminateTimer: NodeJS.Timeout | undefined;
+    let reapTimer: NodeJS.Timeout | undefined;
 
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
-      stdout += chunk;
+      const next = appendProcessCapture(stdout, chunk, stdoutTruncated);
+      stdout = next.value;
+      stdoutTruncated = next.truncated;
     });
     child.stderr?.on("data", (chunk: string) => {
-      stderr += chunk;
+      const next = appendProcessCapture(stderr, chunk, stderrTruncated);
+      stderr = next.value;
+      stderrTruncated = next.truncated;
     });
     child.stdin?.on("error", () => {
       // Process exit/error is authoritative; EPIPE on stdin is only a symptom.
@@ -330,18 +450,38 @@ export async function runCodexProcess(
       exitCode: number | null,
       signal: NodeJS.Signals | null,
       error?: Error & { code?: string },
+      state: {
+        reaped?: boolean;
+        mayBeAlive?: boolean;
+        forced?: boolean;
+      } = {},
     ) => {
       if (settled) {
         return;
       }
       settled = true;
       clearTimeout(timeout);
+      if (terminateTimer !== undefined) {
+        clearTimeout(terminateTimer);
+      }
+      if (reapTimer !== undefined) {
+        clearTimeout(reapTimer);
+      }
+      if (state.forced) {
+        child.stdin?.destroy();
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        child.removeAllListeners("error");
+        child.removeAllListeners("close");
+      }
       resolve({
         exitCode,
         signal,
         stdout,
         stderr,
         timedOut,
+        reaped: state.reaped ?? true,
+        mayBeAlive: state.mayBeAlive ?? false,
         ...(error === undefined ? {} : { error }),
       });
     };
@@ -349,18 +489,48 @@ export async function runCodexProcess(
     const timeout = setTimeout(() => {
       timedOut = true;
       try {
-        child.kill("SIGKILL");
+        if (!child.kill("SIGTERM")) {
+          terminationError = new Error("SIGTERM could not be delivered");
+        }
       } catch (error) {
-        finish(null, null, asProcessError(error));
+        terminationError = asProcessError(error);
       }
+      terminateTimer = setTimeout(() => {
+        try {
+          if (!child.kill("SIGKILL")) {
+            terminationError ??= new Error("SIGKILL could not be delivered");
+          }
+        } catch (error) {
+          terminationError ??= asProcessError(error);
+        }
+        reapTimer = setTimeout(() => {
+          const exitCode =
+            typeof child.exitCode === "number" ? child.exitCode : null;
+          const signal = child.signalCode ?? null;
+          const mayBeAlive = exitCode === null && signal === null;
+          finish(exitCode, signal, terminationError, {
+            reaped: false,
+            mayBeAlive,
+            forced: true,
+          });
+        }, options.reapTimeoutMs ?? 1_000);
+        reapTimer.unref();
+      }, options.terminateGraceMs ?? 1_000);
+      terminateTimer.unref();
     }, options.timeoutMs);
     timeout.unref();
 
     child.once("error", (error) => {
-      finish(null, null, asProcessError(error));
+      finish(null, null, asProcessError(error), {
+        reaped: true,
+        mayBeAlive: false,
+      });
     });
     child.once("close", (exitCode, signal) => {
-      finish(exitCode, signal);
+      finish(exitCode, signal, undefined, {
+        reaped: true,
+        mayBeAlive: false,
+      });
     });
     child.stdin?.end(invocation.stdin, "utf8");
   });
@@ -423,6 +593,36 @@ function isWithin(parent: string, target: string): boolean {
   );
 }
 
+interface FileIdentity {
+  dev: number;
+  ino: number;
+}
+
+function fileIdentity(stat: { dev: number; ino: number }): FileIdentity {
+  return { dev: stat.dev, ino: stat.ino };
+}
+
+async function assertDirectoryIdentity(
+  target: string,
+  expected: FileIdentity,
+  label: string,
+): Promise<void> {
+  let current;
+  try {
+    current = await fs.lstat(target);
+  } catch {
+    throw new Error(`${label} identity changed or the path is missing`);
+  }
+  if (
+    current.isSymbolicLink() ||
+    !current.isDirectory() ||
+    current.dev !== expected.dev ||
+    current.ino !== expected.ino
+  ) {
+    throw new Error(`${label} identity changed`);
+  }
+}
+
 async function assertOutputAbsent(outputFile: string): Promise<void> {
   try {
     await fs.lstat(outputFile);
@@ -482,10 +682,14 @@ async function readValidatedOutput(
   let content: Buffer;
   try {
     const openedStat = await handle.stat();
-    if (!openedStat.isFile() || openedStat.size > MAX_OUTPUT_BYTES) {
+    if (
+      !openedStat.isFile() ||
+      openedStat.nlink !== 1 ||
+      openedStat.size > MAX_OUTPUT_BYTES
+    ) {
       return processFailure(
         "invalid-output",
-        "Codex output is not a regular file within the size limit",
+        "Codex output is not a single-link regular file within the size limit",
       );
     }
     content = await handle.readFile();
@@ -572,14 +776,22 @@ export async function enrichMetadata(
   if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) {
     throw new Error("Staging parent must be a physical directory");
   }
+  const parentIdentity = fileIdentity(parentStat);
 
   let stagingDir: string | undefined;
+  let stagingIdentity: FileIdentity | undefined;
   let candidate: EnrichmentResult | undefined;
+  let preserveStaging = false;
   try {
     stagingDir = await fs.mkdtemp(
       path.join(stagingParent, "metadata-enrichment-"),
     );
     await fs.chmod(stagingDir, 0o700);
+    const stagingStat = await fs.lstat(stagingDir);
+    if (stagingStat.isSymbolicLink() || !stagingStat.isDirectory()) {
+      throw new Error("Staging directory must be a physical directory");
+    }
+    stagingIdentity = fileIdentity(stagingStat);
     if (!isWithin(stagingParent, stagingDir)) {
       throw new Error("Unique staging directory escaped its parent");
     }
@@ -589,6 +801,16 @@ export async function enrichMetadata(
     const outputFile = path.join(stagingDir, "output.json");
     await options.assertSafeStagingPath(inputFile);
     await options.assertSafeStagingPath(outputFile);
+    await assertDirectoryIdentity(
+      stagingParent,
+      parentIdentity,
+      "Staging parent",
+    );
+    await assertDirectoryIdentity(
+      stagingDir,
+      stagingIdentity,
+      "Staging directory",
+    );
     await fs.writeFile(inputFile, `${JSON.stringify(lesson, null, 2)}\n`, {
       encoding: "utf8",
       flag: "wx",
@@ -626,13 +848,34 @@ export async function enrichMetadata(
     }
 
     if (candidate === undefined) {
+      if (
+        processResult!.mayBeAlive === true ||
+        processResult!.reaped === false
+      ) {
+        preserveStaging = true;
+        throw new Error(
+          `Codex process may still be alive or unreaped; staging preserved at ${stagingDir}. Stop the process and remove the directory manually after inspection.`,
+        );
+      }
       const failedProcess = classifyProcessResult(processResult!);
       candidate =
         failedProcess ??
         (await readValidatedOutput(outputFile, lesson.id, lesson.sourceHash));
     }
   } finally {
-    if (stagingDir !== undefined) {
+    if (stagingDir !== undefined && !preserveStaging) {
+      await assertDirectoryIdentity(
+        stagingParent,
+        parentIdentity,
+        "Staging parent",
+      );
+      if (stagingIdentity !== undefined) {
+        await assertDirectoryIdentity(
+          stagingDir,
+          stagingIdentity,
+          "Staging directory",
+        );
+      }
       await fs.rm(stagingDir, { recursive: true, force: true });
     }
   }
@@ -856,6 +1099,9 @@ async function readCliLesson(
     const openedStat = await handle.stat();
     if (!openedStat.isFile()) {
       throw new Error("CLI input must be a regular non-symlink file");
+    }
+    if (openedStat.nlink !== 1) {
+      throw new Error("CLI input must be a single-link file, not a hardlink");
     }
     if (
       openedStat.dev !== initialStat.dev ||

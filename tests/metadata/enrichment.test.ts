@@ -38,6 +38,15 @@ function words(count: number): string {
   );
 }
 
+function codePointLength(value: string): number {
+  return Array.from(value).length;
+}
+
+function summaryWithCodePoints(count: number): string {
+  const base = words(30);
+  return `${base} ${"😀".repeat(count - codePointLength(base) - 1)}`;
+}
+
 function validOutput(
   overrides: Partial<EnrichmentOutput> = {},
 ): EnrichmentOutput {
@@ -184,6 +193,51 @@ describe("enrichment validation", () => {
       ),
     ).toThrow(/30-60 words/i);
   });
+
+  it("trims English fields before validation and rejects blank or trimmed-short titles", () => {
+    const summary = words(30);
+    const output = validateEnrichment(
+      validOutput({
+        titleEn: "  Canonical English Title  ",
+        summaryEn: `  ${summary}  `,
+      }),
+    );
+
+    expect(output.titleEn).toBe("Canonical English Title");
+    expect(output.summaryEn).toBe(summary);
+    expect(() =>
+      validateEnrichment(validOutput({ titleEn: "    " })),
+    ).toThrow();
+    expect(() =>
+      validateEnrichment(validOutput({ titleEn: "  abc  " })),
+    ).toThrow();
+  });
+
+  it("uses Unicode code-point counts for title and summary length parity", () => {
+    expect(() =>
+      validateEnrichment(
+        validOutput({ titleEn: `${"A".repeat(119)}😀` }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateEnrichment(
+        validOutput({ titleEn: `${"A".repeat(120)}😀` }),
+      ),
+    ).toThrow();
+    expect(() =>
+      validateEnrichment(validOutput({ titleEn: "😀😀😀" })),
+    ).toThrow();
+    expect(() =>
+      validateEnrichment(
+        validOutput({ summaryEn: summaryWithCodePoints(600) }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateEnrichment(
+        validOutput({ summaryEn: summaryWithCodePoints(601) }),
+      ),
+    ).toThrow();
+  });
 });
 
 describe("checked-in output schema", () => {
@@ -210,6 +264,7 @@ describe("checked-in output schema", () => {
           type: "string",
           minLength: ENRICHMENT_CONSTRAINTS.titleMinLength,
           maxLength: ENRICHMENT_CONSTRAINTS.titleMaxLength,
+          pattern: "\\S",
         },
         summaryEn: {
           type: "string",
@@ -468,9 +523,59 @@ describe("CLI input isolation", () => {
       /input.*exceeds.*2097152 bytes/i,
     );
   });
+
+  it("rejects a hardlinked input file before staging or running", async () => {
+    const stagingParent = await makeWebsiteTransaction();
+    const outsideRoot = await makeTemporaryRoot();
+    const outsideFile = path.join(outsideRoot, "lesson.json");
+    const inputFile = path.join(stagingParent, "lesson.json");
+    await fs.writeFile(outsideFile, JSON.stringify(stagedLesson));
+    await fs.link(outsideFile, inputFile);
+
+    await expectRejectedBeforeStaging(
+      stagingParent,
+      inputFile,
+      /input.*hardlink|link count|single-link/i,
+    );
+  });
 });
 
 describe("source-path canonicalization policy", () => {
+  async function expectSourceTextAllowed(
+    parentEnv: NodeJS.ProcessEnv,
+    text: string,
+  ): Promise<void> {
+    const root = await makeTemporaryRoot();
+    const stagingParent = path.join(root, "transaction-staging");
+    await fs.mkdir(stagingParent, { mode: 0o700 });
+    const runner: CodexRunner = async (invocation) => {
+      await fs.writeFile(invocation.outputFile, JSON.stringify(validOutput()));
+      return {
+        exitCode: 0,
+        signal: null,
+        stdout: "",
+        stderr: "",
+        timedOut: false,
+        reaped: true,
+        mayBeAlive: false,
+      };
+    };
+
+    const result = await enrichMetadata({
+      stagingParent,
+      assertSafeStagingPath() {},
+      lesson: { ...stagedLesson, bodyMarkdown: text },
+      readCurrentSourceHash: async () => HASH_A,
+      runner,
+      schemaPath,
+      prompt: "fixed prompt",
+      parentEnv,
+    });
+
+    expect(result).toEqual({ ok: true, value: validOutput() });
+    expect(await fs.readdir(stagingParent)).toEqual([]);
+  }
+
   async function expectLessonPathRejected(
     parentEnv: NodeJS.ProcessEnv,
     exposedPath: string,
@@ -748,6 +853,51 @@ describe("source-path canonicalization policy", () => {
       expect(await fs.readdir(stagingParent)).toEqual([]);
     },
   );
+
+  it("does not treat a relative source name as a substring of a larger word", async () => {
+    const parentEnv = {
+      AI_DAILY_SOURCE: "source",
+      RELATED_PROSE: "sources remain available",
+      UNRELATED_VALUE: "kept",
+    };
+
+    const invocation = buildCodexInvocation({
+      stagingDir: "/private/site/.sync-tmp/enrichment-1",
+      outputFile: "/private/site/.sync-tmp/enrichment-1/output.json",
+      schemaPath,
+      prompt: "sources remain available",
+      parentEnv,
+    });
+
+    expect(invocation.env.RELATED_PROSE).toBe("sources remain available");
+    expect(invocation.env.UNRELATED_VALUE).toBe("kept");
+    await expectSourceTextAllowed(parentEnv, "sources remain available");
+  });
+
+  it("does not treat an absolute sibling prefix as the configured source", async () => {
+    const root = await makeTemporaryRoot();
+    const sourceRoot = path.join(root, "ai-daily");
+    const sibling = path.join(root, "ai-daily-backup");
+    await fs.mkdir(sourceRoot);
+    await fs.mkdir(sibling);
+    const parentEnv = {
+      AI_DAILY_SOURCE: sourceRoot,
+      BACKUP_PATH: sibling,
+      UNRELATED_VALUE: "kept",
+    };
+
+    const invocation = buildCodexInvocation({
+      stagingDir: "/private/site/.sync-tmp/enrichment-1",
+      outputFile: "/private/site/.sync-tmp/enrichment-1/output.json",
+      schemaPath,
+      prompt: `Inspect ${sibling}`,
+      parentEnv,
+    });
+
+    expect(invocation.env.BACKUP_PATH).toBe(sibling);
+    expect(invocation.env.UNRELATED_VALUE).toBe("kept");
+    await expectSourceTextAllowed(parentEnv, `Inspect ${sibling}`);
+  });
 });
 
 describe("Codex invocation and process runner", () => {
@@ -860,7 +1010,42 @@ describe("Codex invocation and process runner", () => {
     expect(stdin).toBe("prompt via stdin");
   });
 
-  it("kills a process after the configured timeout", async () => {
+  it("caps oversized stdout and stderr with deterministic truncation markers", async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = vi.fn(() => true);
+
+    const resultPromise = runCodexProcess(
+      {
+        command: "codex",
+        args: ["exec", "-"],
+        cwd: "/tmp/staging",
+        env: {},
+        stdin: "prompt",
+        shell: false,
+        outputFile: "/tmp/staging/output.json",
+      },
+      { timeoutMs: 1_000, spawnImpl: (() => child) as never },
+    );
+    child.stdout.write("x".repeat(70_000));
+    child.stderr.write("y".repeat(70_000));
+    child.emit("close", 0, null);
+
+    const result = await resultPromise;
+    expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(64 * 1024);
+    expect(Buffer.byteLength(result.stderr)).toBeLessThanOrEqual(64 * 1024);
+    expect(result.stdout).toMatch(/\n\.\.\.\[truncated\]\n$/);
+    expect(result.stderr).toMatch(/\n\.\.\.\[truncated\]\n$/);
+  });
+
+  it("terminates with SIGTERM and reports a safely reaped timeout when close follows", async () => {
     vi.useFakeTimers();
     const child = new EventEmitter() as EventEmitter & {
       stdin: Writable;
@@ -871,8 +1056,8 @@ describe("Codex invocation and process runner", () => {
     child.stdin = new PassThrough();
     child.stdout = new PassThrough();
     child.stderr = new PassThrough();
-    child.kill = vi.fn(() => {
-      queueMicrotask(() => child.emit("close", null, "SIGKILL"));
+    child.kill = vi.fn((signal) => {
+      queueMicrotask(() => child.emit("close", null, signal));
       return true;
     });
 
@@ -886,12 +1071,127 @@ describe("Codex invocation and process runner", () => {
         shell: false,
         outputFile: "/tmp/staging/output.json",
       },
-      { timeoutMs: 25, spawnImpl: (() => child) as never },
+      {
+        timeoutMs: 25,
+        terminateGraceMs: 10,
+        reapTimeoutMs: 10,
+        spawnImpl: (() => child) as never,
+      },
     );
     await vi.advanceTimersByTimeAsync(25);
 
-    await expect(resultPromise).resolves.toMatchObject({ timedOut: true });
-    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+    await expect(resultPromise).resolves.toMatchObject({
+      timedOut: true,
+      reaped: true,
+      mayBeAlive: false,
+    });
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
+  it.each([
+    ["returns false", () => false],
+    ["throws", () => { throw new Error("kill failed"); }],
+  ])("settles after bounded TERM/KILL/reap deadlines when kill %s", async (
+    _label,
+    killImplementation,
+  ) => {
+    vi.useFakeTimers();
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+      exitCode: number | null;
+      signalCode: NodeJS.Signals | null;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = vi.fn(killImplementation);
+
+    let result: CodexProcessResult | undefined;
+    void runCodexProcess(
+      {
+        command: "codex",
+        args: ["exec", "-"],
+        cwd: "/tmp/staging",
+        env: {},
+        stdin: "prompt",
+        shell: false,
+        outputFile: "/tmp/staging/output.json",
+      },
+      {
+        timeoutMs: 25,
+        terminateGraceMs: 10,
+        reapTimeoutMs: 10,
+        spawnImpl: (() => child) as never,
+      },
+    ).then((value) => {
+      result = value;
+    });
+
+    await vi.advanceTimersByTimeAsync(45);
+
+    expect(result).toMatchObject({
+      timedOut: true,
+      reaped: false,
+      mayBeAlive: true,
+    });
+    expect(child.kill).toHaveBeenNthCalledWith(1, "SIGTERM");
+    expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+    expect(child.stdin.destroyed).toBe(true);
+    expect(child.stdout.destroyed).toBe(true);
+    expect(child.stderr.destroyed).toBe(true);
+  });
+
+  it("settles a never-close child as safely dead when exit state becomes observable", async () => {
+    vi.useFakeTimers();
+    const child = new EventEmitter() as EventEmitter & {
+      stdin: PassThrough;
+      stdout: PassThrough;
+      stderr: PassThrough;
+      exitCode: number | null;
+      signalCode: NodeJS.Signals | null;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = vi.fn((signal) => {
+      if (signal === "SIGKILL") {
+        child.signalCode = "SIGKILL";
+      }
+      return true;
+    });
+
+    const resultPromise = runCodexProcess(
+      {
+        command: "codex",
+        args: ["exec", "-"],
+        cwd: "/tmp/staging",
+        env: {},
+        stdin: "prompt",
+        shell: false,
+        outputFile: "/tmp/staging/output.json",
+      },
+      {
+        timeoutMs: 25,
+        terminateGraceMs: 10,
+        reapTimeoutMs: 10,
+        spawnImpl: (() => child) as never,
+      },
+    );
+    await vi.advanceTimersByTimeAsync(45);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      timedOut: true,
+      reaped: false,
+      mayBeAlive: false,
+    });
   });
 });
 
@@ -1052,7 +1352,13 @@ describe("enrichment orchestration", () => {
     ],
     [
       "timeout",
-      async () => processResult({ exitCode: null, timedOut: true }),
+      async () =>
+        processResult({
+          exitCode: null,
+          timedOut: true,
+          reaped: true,
+          mayBeAlive: false,
+        }),
       "timeout",
     ],
     [
@@ -1068,6 +1374,33 @@ describe("enrichment orchestration", () => {
     const { result } = await exercise(runner as CodexRunner);
 
     expect(result).toMatchObject({ ok: false, reason });
+  });
+
+  it("preserves staging and throws when a runner reports an unreaped process", async () => {
+    const root = await makeTemporaryRoot();
+    const stagingParent = path.join(root, "transaction-staging");
+    await fs.mkdir(stagingParent, { mode: 0o700 });
+
+    await expect(
+      enrichMetadata({
+        stagingParent,
+        assertSafeStagingPath() {},
+        lesson: stagedLesson,
+        readCurrentSourceHash: async () => HASH_A,
+        runner: async () =>
+          processResult({
+            exitCode: null,
+            timedOut: true,
+            reaped: false,
+            mayBeAlive: true,
+          }),
+        schemaPath,
+        prompt: await fs.readFile(promptPath, "utf8"),
+      }),
+    ).rejects.toThrow(/process may still be alive|unreaped.*preserved/i);
+    const preserved = await fs.readdir(stagingParent);
+    expect(preserved).toHaveLength(1);
+    expect(preserved[0]).toMatch(/^metadata-enrichment-/);
   });
 
   it("allows stderr warnings when Codex exits zero with valid output", async () => {
@@ -1115,6 +1448,24 @@ describe("enrichment orchestration", () => {
     );
   });
 
+  it("rejects a hardlinked output file and cleans only the staging link", async () => {
+    const root = await makeTemporaryRoot();
+    const outside = path.join(root, "outside.json");
+    await fs.writeFile(outside, JSON.stringify(validOutput()));
+    const runner: CodexRunner = async (invocation) => {
+      await fs.link(outside, invocation.outputFile);
+      return processResult();
+    };
+
+    const { result } = await exercise(runner);
+
+    expect(result).toMatchObject({ ok: false, reason: "invalid-output" });
+    await expect(fs.readFile(outside, "utf8")).resolves.toBe(
+      JSON.stringify(validOutput()),
+    );
+    expect((await fs.stat(outside)).nlink).toBe(1);
+  });
+
   it("throws path-safety failures and removes a child created before a child guard fails", async () => {
     const root = await makeTemporaryRoot();
     const stagingParent = path.join(root, "transaction-staging");
@@ -1138,5 +1489,78 @@ describe("enrichment orchestration", () => {
       }),
     ).rejects.toThrow(/unsafe child path/);
     expect(await fs.readdir(stagingParent)).toEqual([]);
+  });
+
+  it("detects staging-parent replacement before lesson write and preserves the original child", async () => {
+    const root = await makeTemporaryRoot();
+    const stagingParent = path.join(root, "transaction-staging");
+    const displacedParent = path.join(root, "displaced-staging");
+    await fs.mkdir(stagingParent, { mode: 0o700 });
+    const runner = vi.fn() as unknown as CodexRunner;
+    let replaced = false;
+
+    await expect(
+      enrichMetadata({
+        stagingParent,
+        async assertSafeStagingPath(target) {
+          if (!replaced && target.endsWith("lesson.json")) {
+            replaced = true;
+            await fs.rename(stagingParent, displacedParent);
+            await fs.mkdir(stagingParent, { mode: 0o700 });
+          }
+        },
+        lesson: stagedLesson,
+        readCurrentSourceHash: async () => HASH_A,
+        runner,
+        schemaPath,
+        prompt: await fs.readFile(promptPath, "utf8"),
+      }),
+    ).rejects.toThrow(/staging parent.*identity changed/i);
+    expect(runner).not.toHaveBeenCalled();
+    expect(await fs.readdir(stagingParent)).toEqual([]);
+    const preservedChildren = await fs.readdir(displacedParent);
+    expect(preservedChildren).toHaveLength(1);
+    await expect(
+      fs.stat(path.join(displacedParent, preservedChildren[0]!, "lesson.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("detects staging-child replacement before cleanup and never deletes the replacement", async () => {
+    const root = await makeTemporaryRoot();
+    const stagingParent = path.join(root, "transaction-staging");
+    const displacedChild = path.join(root, "displaced-child");
+    await fs.mkdir(stagingParent, { mode: 0o700 });
+
+    await expect(
+      enrichMetadata({
+        stagingParent,
+        assertSafeStagingPath() {},
+        lesson: stagedLesson,
+        readCurrentSourceHash: async () => HASH_A,
+        runner: async (invocation) => {
+          await fs.rename(invocation.cwd, displacedChild);
+          await fs.mkdir(invocation.cwd, { mode: 0o700 });
+          await fs.writeFile(path.join(invocation.cwd, "replacement.txt"), "keep");
+          return processResult({ exitCode: 2, reaped: true, mayBeAlive: false });
+        },
+        schemaPath,
+        prompt: await fs.readFile(promptPath, "utf8"),
+      }),
+    ).rejects.toThrow(/staging directory.*identity changed/i);
+    await expect(
+      fs.readFile(
+        path.join(stagingParent, path.basename(displacedChild), "replacement.txt"),
+        "utf8",
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    const replacements = await fs.readdir(stagingParent);
+    expect(replacements).toHaveLength(1);
+    await expect(
+      fs.readFile(
+        path.join(stagingParent, replacements[0]!, "replacement.txt"),
+        "utf8",
+      ),
+    ).resolves.toBe("keep");
+    await expect(fs.stat(displacedChild)).resolves.toMatchObject({});
   });
 });

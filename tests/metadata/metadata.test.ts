@@ -323,6 +323,21 @@ describe("metadata creation and transitions", () => {
     });
   });
 
+  it("stores canonical trimmed English enrichment", () => {
+    const summary = words(35);
+
+    const enriched = applyEnrichment(pendingSidecar(), {
+      id: "lesson-0013",
+      sourceHash: HASH_A,
+      titleEn: "  A Canonical English Title  ",
+      summaryEn: `  ${summary}  `,
+      tags: ["canonical-title"],
+    });
+
+    expect(enriched.titleEn).toBe("A Canonical English Title");
+    expect(enriched.summaryEn).toBe(summary);
+  });
+
   it("does not allow Codex output to set source review state", () => {
     expect(() =>
       applyEnrichment(pendingSidecar(), {
@@ -381,7 +396,7 @@ describe("slug and display behavior", () => {
     });
   });
 
-  it("falls back instead of displaying English when a current marker has a mismatched hash", () => {
+  it("rejects a current marker with a mismatched metadata hash", () => {
     const mismatched = {
       ...currentSidecar(),
       source: { ...currentSidecar().source, hash: HASH_B },
@@ -389,12 +404,20 @@ describe("slug and display behavior", () => {
       sourceStatusHash: HASH_B,
     } as SidecarMetadata;
 
-    expect(resolveMetadataDisplay(mismatched)).toMatchObject({
-      title: mismatched.titleZh,
-      summary: mismatched.summaryZh,
+    expect(() => resolveMetadataDisplay(mismatched)).toThrow(
+      /current metadata must be bound/i,
+    );
+  });
+
+  it("rejects invalid current metadata with empty tags", () => {
+    const invalid = {
+      ...currentSidecar(),
       tags: [],
-      languageState: "original-in-chinese",
-    });
+    } as SidecarMetadata;
+
+    expect(() => resolveMetadataDisplay(invalid)).toThrow(
+      /complete English metadata set/i,
+    );
   });
 
   it("reports both lesson IDs for a duplicate slug", () => {

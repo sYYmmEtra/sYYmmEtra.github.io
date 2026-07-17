@@ -68,10 +68,28 @@ const SourceFileSchema = z
 const TagSchema = z
   .string()
   .regex(new RegExp(ENRICHMENT_CONSTRAINTS.tagPattern));
+function codePointLength(value: string): number {
+  return Array.from(value).length;
+}
+
 const EnglishTitleSchema = z
   .string()
-  .min(ENRICHMENT_CONSTRAINTS.titleMinLength)
-  .max(ENRICHMENT_CONSTRAINTS.titleMaxLength);
+  .transform((value) => value.trim())
+  .superRefine((value, context) => {
+    const length = codePointLength(value);
+    if (length < ENRICHMENT_CONSTRAINTS.titleMinLength) {
+      context.addIssue({
+        code: "custom",
+        message: `English title must contain at least ${ENRICHMENT_CONSTRAINTS.titleMinLength} Unicode characters`,
+      });
+    }
+    if (length > ENRICHMENT_CONSTRAINTS.titleMaxLength) {
+      context.addIssue({
+        code: "custom",
+        message: `English title must contain at most ${ENRICHMENT_CONSTRAINTS.titleMaxLength} Unicode characters`,
+      });
+    }
+  });
 
 export function countEnglishWords(value: string): number {
   return value.match(ENGLISH_WORD_PATTERN)?.length ?? 0;
@@ -79,9 +97,21 @@ export function countEnglishWords(value: string): number {
 
 const EnglishSummarySchema = z
   .string()
-  .min(ENRICHMENT_CONSTRAINTS.summaryMinLength)
-  .max(ENRICHMENT_CONSTRAINTS.summaryMaxLength)
+  .transform((value) => value.trim())
   .superRefine((value, context) => {
+    const length = codePointLength(value);
+    if (length < ENRICHMENT_CONSTRAINTS.summaryMinLength) {
+      context.addIssue({
+        code: "custom",
+        message: `English summary must contain at least ${ENRICHMENT_CONSTRAINTS.summaryMinLength} Unicode characters`,
+      });
+    }
+    if (length > ENRICHMENT_CONSTRAINTS.summaryMaxLength) {
+      context.addIssue({
+        code: "custom",
+        message: `English summary must contain at most ${ENRICHMENT_CONSTRAINTS.summaryMaxLength} Unicode characters`,
+      });
+    }
     const wordCount = countEnglishWords(value);
     if (
       wordCount < ENRICHMENT_CONSTRAINTS.summaryMinWords ||
@@ -437,7 +467,7 @@ export interface ResolvedMetadataDisplay {
 export function resolveMetadataDisplay(
   value: SidecarMetadata,
 ): ResolvedMetadataDisplay {
-  const sidecar = SidecarBaseSchema.parse(value);
+  const sidecar = SidecarMetadataSchema.parse(value);
   const englishIsCurrent =
     sidecar.metadataStatus === "current" &&
     sidecar.metadataSourceHash === sidecar.source.hash &&
