@@ -64,6 +64,10 @@ export function assertSafeWritePath(
   websiteRoot: string,
   target: string,
 ): void {
+  if (target.split(/[\\/]+/).includes("..")) {
+    throw new Error("Write target is outside website root");
+  }
+
   const website = path.resolve(resolveExistingPath(websiteRoot));
   const writeTarget = resolvePhysicalDestination(target);
 

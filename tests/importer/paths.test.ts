@@ -97,6 +97,21 @@ describe("assertSafeWritePath", () => {
     ).toThrow(/outside website root/);
   });
 
+  it("rejects parent traversal after a symlink component", () => {
+    const root = makeTemporaryRoot();
+    const websiteRoot = path.join(root, "site");
+    const outsideRoot = path.join(root, "outside");
+    const linkedOutside = path.join(websiteRoot, "linked-out");
+    mkdirSync(websiteRoot);
+    mkdirSync(outsideRoot);
+    symlinkSync(outsideRoot, linkedOutside);
+    const target = `${linkedOutside}/../escaped.md`;
+
+    expect(() => assertSafeWritePath(websiteRoot, target)).toThrow(
+      /outside website root/,
+    );
+  });
+
   it("allows a missing target below a symlinked website root", () => {
     const root = makeTemporaryRoot();
     const physicalWebsiteRoot = path.join(root, "site");
