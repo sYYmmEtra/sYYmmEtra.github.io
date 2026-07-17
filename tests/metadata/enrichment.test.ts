@@ -685,6 +685,69 @@ describe("source-path canonicalization policy", () => {
     }
     expect(runner).not.toHaveBeenCalled();
   });
+
+  it.each(["”", "’", "…", "—", "→", "#"])(
+    "uses Unicode punctuation or symbol delimiter %s across env, prompt, and staged content",
+    async (delimiter) => {
+      const root = await makeTemporaryRoot();
+      const physicalSource = path.join(root, "physical-source");
+      const sourceAlias = path.join(root, "source-alias");
+      const stagingParent = path.join(root, "transaction-staging");
+      await fs.mkdir(physicalSource);
+      await fs.mkdir(stagingParent);
+      await fs.symlink(physicalSource, sourceAlias);
+      const parentEnv = {
+        AI_DAILY_SOURCE: physicalSource,
+        PUNCTUATED_ALIAS: `See ${sourceAlias}${delimiter}continued`,
+        UNRELATED_VALUE: "kept",
+      };
+
+      const invocation = buildCodexInvocation({
+        stagingDir: path.join(root, "website-staging"),
+        outputFile: path.join(root, "website-staging", "output.json"),
+        schemaPath,
+        prompt: "fixed prompt",
+        parentEnv,
+      });
+      expect(invocation.env).not.toHaveProperty("PUNCTUATED_ALIAS");
+      expect(invocation.env.UNRELATED_VALUE).toBe("kept");
+
+      expect(() =>
+        buildCodexInvocation({
+          stagingDir: path.join(root, "website-staging"),
+          outputFile: path.join(root, "website-staging", "output.json"),
+          schemaPath,
+          prompt: `Read ${sourceAlias}${delimiter}continued`,
+          parentEnv,
+        }),
+      ).toThrow(/must not expose the AI Daily source path/i);
+
+      const runner = vi.fn(async () => ({
+        exitCode: 0,
+        signal: null,
+        stdout: "",
+        stderr: "",
+        timedOut: false,
+      })) as unknown as CodexRunner;
+      await expect(
+        enrichMetadata({
+          stagingParent,
+          assertSafeStagingPath() {},
+          lesson: {
+            ...stagedLesson,
+            bodyMarkdown: `Body ${sourceAlias}${delimiter}continued`,
+          },
+          readCurrentSourceHash: async () => HASH_A,
+          runner,
+          schemaPath,
+          prompt: await fs.readFile(promptPath, "utf8"),
+          parentEnv,
+        }),
+      ).rejects.toThrow(/must not expose the AI Daily source path/i);
+      expect(runner).not.toHaveBeenCalled();
+      expect(await fs.readdir(stagingParent)).toEqual([]);
+    },
+  );
 });
 
 describe("Codex invocation and process runner", () => {

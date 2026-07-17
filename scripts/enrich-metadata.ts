@@ -64,9 +64,7 @@ interface SourcePathPolicy {
   absoluteRoots: readonly string[];
 }
 
-const PROSE_PATH_PUNCTUATION = new Set(
-  Array.from(".,;:!?()[]{}，。；：！？、（）【】《》「」『』〈〉〔〕〖〗〘〙〚〛"),
-);
+const UNICODE_PATH_DELIMITER = /[\p{P}\p{S}]/u;
 
 function tryResolvePhysicalPath(value: string): string | undefined {
   let ancestor = path.resolve(value);
@@ -137,33 +135,21 @@ function absolutePathExposesSource(
   );
 }
 
-function trimTrailingProsePunctuation(value: string): string {
-  let end = value.length;
-  while (end > 0 && PROSE_PATH_PUNCTUATION.has(value[end - 1]!)) {
-    end -= 1;
-  }
-  return value.slice(0, end);
-}
-
 function absolutePathCandidates(value: string): string[] {
   const rawTokens = value.match(/\/[^\s"'`<>|\\]+/g) ?? [];
   const candidates: string[] = [];
 
   for (const token of rawTokens) {
     candidates.push(token);
-    const trimmed = trimTrailingProsePunctuation(token);
-    if (trimmed !== token) {
-      candidates.push(trimmed);
-    }
-
-    for (let index = 1; index < token.length; index += 1) {
-      if (!PROSE_PATH_PUNCTUATION.has(token[index]!)) {
-        continue;
+    let offset = 0;
+    for (const codePoint of token) {
+      if (offset > 0 && UNICODE_PATH_DELIMITER.test(codePoint)) {
+        const prefix = token.slice(0, offset);
+        if (path.isAbsolute(prefix)) {
+          candidates.push(prefix);
+        }
       }
-      const prefix = trimTrailingProsePunctuation(token.slice(0, index));
-      if (path.isAbsolute(prefix)) {
-        candidates.push(prefix);
-      }
+      offset += codePoint.length;
     }
   }
 
