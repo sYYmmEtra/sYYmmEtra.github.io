@@ -33,6 +33,7 @@ function findLessonHeadings(source: string): LessonHeading[] {
     const lineEnd = newline === -1 ? source.length : newline;
     const line = source.slice(lineStart, lineEnd);
     const fenceMatch = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    const lessonHeadingMatch = /^ {0,3}(# 📅.*)$/.exec(line);
 
     if (fence) {
       if (
@@ -48,8 +49,8 @@ function findLessonHeadings(source: string): LessonHeading[] {
         marker: fenceMatch[1]![0] as MarkdownFence["marker"],
         length: fenceMatch[1]!.length,
       };
-    } else if (line.startsWith("# 📅")) {
-      headings.push({ index: lineStart, text: line });
+    } else if (lessonHeadingMatch) {
+      headings.push({ index: lineStart, text: lessonHeadingMatch[1]! });
     }
 
     if (newline === -1) {
@@ -83,7 +84,10 @@ export async function splitLessonSegments(
     const start = heading.index;
     const end = headings[index + 1]?.index ?? normalized.length;
     const raw = normalized.slice(start, end);
-    let titleZh = heading.text.slice("# 📅".length).trim();
+    let titleZh = heading.text
+      .slice("# 📅".length)
+      .replace(/[ \t]+#+[ \t]*$/, "")
+      .trim();
 
     if (titleZh.startsWith(date)) {
       titleZh = titleZh.slice(date.length).trim();

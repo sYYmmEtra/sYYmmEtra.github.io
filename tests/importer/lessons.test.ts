@@ -94,6 +94,45 @@ describe("lesson splitting", () => {
     expect(segments[0]?.raw).toContain("# 📅 2026-07-06 — 波浪线代码示例");
   });
 
+  it("recognizes up to three leading spaces but not four", async () => {
+    const file = await writeTemporaryLesson(
+      [
+        "# 📅 2026-07-06 — 零空格",
+        "正文一",
+        " # 📅 2026-07-06 — 一空格",
+        "正文二",
+        "  # 📅 2026-07-06 — 二空格",
+        "正文三",
+        "   # 📅 2026-07-06 — 三空格",
+        "正文四",
+        "    # 📅 2026-07-06 — 四空格代码",
+      ].join("\n"),
+    );
+
+    const segments = await splitLessonSegments(file);
+
+    expect(segments.map((segment) => segment.titleZh)).toEqual([
+      "零空格",
+      "一空格",
+      "二空格",
+      "三空格",
+    ]);
+    expect(segments[3]?.raw).toContain("    # 📅 2026-07-06 — 四空格代码");
+  });
+
+  it("excludes optional ATX closing hashes from the title only", async () => {
+    const source = "  # 📅 2026-07-06 — Normal ###   \n正文";
+    const file = await writeTemporaryLesson(source);
+
+    const [segment] = await splitLessonSegments(file);
+
+    expect(segment?.titleZh).toBe("Normal");
+    expect(segment?.raw).toBe(source);
+    expect(segment?.hash).toBe(
+      `sha256:${createHash("sha256").update(source).digest("hex")}`,
+    );
+  });
+
   it("preserves whether the source ends with a final newline", async () => {
     const withoutNewline = await writeTemporaryLesson(
       "# 📅 2026-07-06 — 无换行\n正文",
