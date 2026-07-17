@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { parseLearningLog } from "../../scripts/lib/learning-log";
 
 const tableHeader =
-  "| Lesson | Date | Track | Topic | Depth | Summary Zh | Next Zh |";
+  "| 讲次 | 日期 | 轨道 | 主题 | 深度 | 一句话要点 | 下次可深入 |";
 const tableDivider = "| --- | --- | --- | --- | --- | --- | --- |";
 
 function learningLogTable(...rows: string[]): string {
@@ -57,6 +57,23 @@ it("decodes an escaped pipe at the end of the final cell", () => {
   expect(parseLearningLog(source)[0]?.nextZh).toBe("next |");
 });
 
+it("ignores unrelated numeric root tables", () => {
+  const unrelatedTable = [
+    "| Lesson | Date | Track | Topic | Depth | Summary | Next |",
+    tableDivider,
+    "| 99 | 2026-07-08 | A | unrelated | L1 | ignore | ignore |",
+  ].join("\n");
+  const source = [
+    unrelatedTable,
+    "",
+    learningLogTable(
+      "| 4 | 2026-07-08 | A | actual | L1 | import | continue |",
+    ),
+  ].join("\n");
+
+  expect(parseLearningLog(source).map((row) => row.lesson)).toEqual([4]);
+});
+
 describe("learning-log validation", () => {
   const validCells = [
     "1",
@@ -101,4 +118,15 @@ describe("learning-log validation", () => {
 
     expect(() => parseLearningLog(source)).toThrow(/line 3.*lesson/i);
   });
+
+  it.each(["-1", "+1", "abc", "", "1.5"])(
+    "reports the source line for invalid lesson ID %j",
+    (lesson) => {
+      const source = learningLogTable(
+        `| ${lesson} | 2026-07-06 | A | 主题 | L1 | 摘要 | 后续 |`,
+      );
+
+      expect(() => parseLearningLog(source)).toThrow(/line 3.*lesson/i);
+    },
+  );
 });

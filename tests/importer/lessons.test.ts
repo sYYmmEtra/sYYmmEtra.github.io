@@ -271,6 +271,34 @@ describe("lesson splitting", () => {
     });
   });
 
+  it("rejects a structured heading date that differs from the filename", async () => {
+    const file = await writeTemporaryLesson(
+      "# 📅 2026-07-07 · 轨道A · 日期不一致 · 深度 L1\n正文",
+    );
+
+    await expect(splitLessonSegments(file)).rejects.toThrow(
+      /heading date 2026-07-07.*filename date 2026-07-06.*2026-07-06\.md.*section 1/i,
+    );
+  });
+
+  it("rejects a simple heading date that differs from the filename", async () => {
+    const file = await writeTemporaryLesson(
+      "# 📅 2026-07-07 — 日期不一致\n正文",
+    );
+
+    await expect(splitLessonSegments(file)).rejects.toThrow(
+      /heading date 2026-07-07.*filename date 2026-07-06.*2026-07-06\.md.*section 1/i,
+    );
+  });
+
+  it("preserves the undated simple-heading fallback", async () => {
+    const file = await writeTemporaryLesson("# 📅 Undated title\n正文");
+
+    const [segment] = await splitLessonSegments(file);
+
+    expect(segment?.titleZh).toBe("Undated title");
+  });
+
   it("reports malformed structured headings with file and section context", async () => {
     const file = await writeTemporaryLesson(
       [

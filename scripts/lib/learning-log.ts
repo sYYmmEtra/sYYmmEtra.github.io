@@ -8,6 +8,15 @@ export type Track = "A" | "B" | "C";
 export type Depth = "L1" | "L2" | "L3" | "L4";
 
 const markdownParser = unified().use(remarkParse).use(remarkGfm);
+const LEARNING_LOG_HEADER = [
+  "讲次",
+  "日期",
+  "轨道",
+  "主题",
+  "深度",
+  "一句话要点",
+  "下次可深入",
+] as const;
 
 export interface LearningLogRow {
   lesson: number;
@@ -58,17 +67,21 @@ export function parseLearningLog(source: string): LearningLogRow[] {
       continue;
     }
 
-    for (const row of node.children.slice(1)) {
-      const cells = row.children.map((cell) => toString(cell).trim());
-      const lessonCell = cells[0] ?? "";
-      const lineNumber = rowLineNumber(row);
+    const [header, ...dataRows] = node.children;
+    const headerCells = header?.children.map((cell) => toString(cell).trim());
+    if (
+      !headerCells ||
+      headerCells.length !== LEARNING_LOG_HEADER.length ||
+      !LEARNING_LOG_HEADER.every(
+        (expected, index) => headerCells[index] === expected,
+      )
+    ) {
+      continue;
+    }
 
-      if (!/^\d+$/.test(lessonCell)) {
-        if (/^\d/.test(lessonCell)) {
-          invalidRow(lineNumber, "lesson must be a positive integer");
-        }
-        continue;
-      }
+    for (const row of dataRows) {
+      const cells = row.children.map((cell) => toString(cell).trim());
+      const lineNumber = rowLineNumber(row);
 
       if (cells.length !== 7) {
         invalidRow(
@@ -77,6 +90,7 @@ export function parseLearningLog(source: string): LearningLogRow[] {
         );
       }
 
+      const lessonCell = cells[0]!;
       const date = cells[1]!;
       const trackCell = cells[2]!;
       const topic = cells[3]!;
@@ -85,7 +99,11 @@ export function parseLearningLog(source: string): LearningLogRow[] {
       const nextZh = cells[6]!;
       const lesson = Number(lessonCell);
 
-      if (!Number.isSafeInteger(lesson) || lesson < 1) {
+      if (
+        !/^\d+$/.test(lessonCell) ||
+        !Number.isSafeInteger(lesson) ||
+        lesson < 1
+      ) {
         invalidRow(lineNumber, "lesson must be a positive integer");
       }
       if (!isValidDate(date)) {

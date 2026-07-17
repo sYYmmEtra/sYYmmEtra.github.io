@@ -24,6 +24,7 @@ export interface LessonSegment {
 interface ParsedLessonHeading {
   titleZh: string;
   lesson?: number;
+  date?: string;
 }
 
 interface LessonHeading {
@@ -78,9 +79,23 @@ function parseStructuredLessonHeading(
   }
 
   return {
+    date: groups.date!,
     titleZh: groups.topic!.trim(),
     ...(lesson === undefined ? {} : { lesson }),
   };
+}
+
+function assertHeadingDateMatchesFile(
+  headingDate: string,
+  filenameDate: string,
+  sourceFile: string,
+  section: number,
+): void {
+  if (headingDate !== filenameDate) {
+    throw new Error(
+      `Lesson heading date ${headingDate} does not match filename date ${filenameDate} in ${sourceFile} section ${section}`,
+    );
+  }
 }
 
 function looksLikeStructuredLessonHeading(text: string): boolean {
@@ -99,6 +114,12 @@ function parseLessonHeading(
 ): ParsedLessonHeading {
   const structured = parseStructuredLessonHeading(text);
   if (structured) {
+    assertHeadingDateMatchesFile(
+      structured.date!,
+      date,
+      sourceFile,
+      section,
+    );
     return structured;
   }
 
@@ -108,9 +129,11 @@ function parseLessonHeading(
     );
   }
 
+  const simpleDate = /^(\d{4}-\d{2}-\d{2})(?!\d)/.exec(text)?.[1];
   let titleZh = text;
-  if (titleZh.startsWith(date)) {
-    titleZh = titleZh.slice(date.length).trim();
+  if (simpleDate) {
+    assertHeadingDateMatchesFile(simpleDate, date, sourceFile, section);
+    titleZh = titleZh.slice(simpleDate.length).trim();
   }
 
   return {
