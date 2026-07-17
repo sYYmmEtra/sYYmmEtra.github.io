@@ -16,6 +16,34 @@ function isDescendant(parent: string, candidate: string): boolean {
   );
 }
 
+function resolvePhysicalDestination(target: string): string {
+  let ancestor = path.resolve(target);
+  const missingSuffix: string[] = [];
+
+  while (true) {
+    try {
+      fs.lstatSync(ancestor);
+      return path.resolve(resolveExistingPath(ancestor), ...missingSuffix);
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !("code" in error) ||
+        error.code !== "ENOENT"
+      ) {
+        throw error;
+      }
+
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) {
+        throw error;
+      }
+
+      missingSuffix.unshift(path.basename(ancestor));
+      ancestor = parent;
+    }
+  }
+}
+
 export function assertDisjointRoots(
   websiteRoot: string,
   sourceRoot: string,
@@ -37,7 +65,7 @@ export function assertSafeWritePath(
   target: string,
 ): void {
   const website = path.resolve(resolveExistingPath(websiteRoot));
-  const writeTarget = path.resolve(target);
+  const writeTarget = resolvePhysicalDestination(target);
 
   if (!isDescendant(website, writeTarget)) {
     throw new Error("Write target is outside website root");

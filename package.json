@@ -11,9 +11,6 @@
     "search:index": "pagefind --site dist",
     "build": "npm run build:astro && npm run search:index",
     "preview": "astro preview",
-    "sync": "tsx scripts/sync-ai-daily.ts",
-    "metadata:enrich": "tsx scripts/enrich-metadata.ts",
-    "publish": "tsx scripts/publish.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

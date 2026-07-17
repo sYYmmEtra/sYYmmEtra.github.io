@@ -1,4 +1,10 @@
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,7 +14,9 @@ import { assertDisjointRoots, assertSafeWritePath } from "../../scripts/lib/path
 const temporaryRoots: string[] = [];
 
 function makeTemporaryRoot(): string {
-  const root = mkdtempSync(path.join(tmpdir(), "personal-blog-paths-"));
+  const root = mkdtempSync(
+    path.join(realpathSync(tmpdir()), "personal-blog-paths-"),
+  );
   temporaryRoots.push(root);
   return root;
 }
@@ -51,6 +59,16 @@ describe("assertDisjointRoots", () => {
 
     expect(() => assertDisjointRoots(websiteRoot, sourceRoot)).not.toThrow();
   });
+
+  it("rejects identical website and source roots", () => {
+    const root = makeTemporaryRoot();
+    const sharedRoot = path.join(root, "shared");
+    mkdirSync(sharedRoot);
+
+    expect(() => assertDisjointRoots(sharedRoot, sharedRoot)).toThrow(
+      /must be physically separate/,
+    );
+  });
 });
 
 describe("assertSafeWritePath", () => {
@@ -63,5 +81,34 @@ describe("assertSafeWritePath", () => {
     expect(() => assertSafeWritePath(websiteRoot, outsideTarget)).toThrow(
       /outside website root/,
     );
+  });
+
+  it("rejects a write through a symlink that escapes the website root", () => {
+    const root = makeTemporaryRoot();
+    const websiteRoot = path.join(root, "site");
+    const outsideRoot = path.join(root, "outside");
+    const linkedOutside = path.join(websiteRoot, "linked-out");
+    mkdirSync(websiteRoot);
+    mkdirSync(outsideRoot);
+    symlinkSync(outsideRoot, linkedOutside);
+
+    expect(() =>
+      assertSafeWritePath(websiteRoot, path.join(linkedOutside, "escape.md")),
+    ).toThrow(/outside website root/);
+  });
+
+  it("allows a missing target below a symlinked website root", () => {
+    const root = makeTemporaryRoot();
+    const physicalWebsiteRoot = path.join(root, "site");
+    const websiteRoot = path.join(root, "site-alias");
+    mkdirSync(physicalWebsiteRoot);
+    symlinkSync(physicalWebsiteRoot, websiteRoot);
+
+    expect(() =>
+      assertSafeWritePath(
+        websiteRoot,
+        path.join(websiteRoot, "generated", "lesson.md"),
+      ),
+    ).not.toThrow();
   });
 });
