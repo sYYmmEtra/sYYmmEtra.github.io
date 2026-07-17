@@ -167,14 +167,34 @@ describe("matchSegmentsToLog", () => {
   it("normalizes Unicode, case, whitespace, and punctuation", () => {
     const source = segment({
       section: 1,
-      titleZh: "  Ｔｒａｎｓｆｏｒｍｅｒ：提示工程（基础）  ",
+      titleZh: "  Ｔｒａｎｓｆｏｒｍｅｒ：提示工程（基础·模式）  ",
     });
-    const log = row({ lesson: 8, topic: "transformer 提示工程 - 基础" });
+    const log = row({ lesson: 8, topic: "transformer 提示工程 基础 模式" });
     const unrelated = row({ lesson: 9, topic: "其他主题" });
 
     expect(matchSegmentsToLog([source], [log, unrelated])[0]?.id).toBe(
       "lesson-0008",
     );
+  });
+
+  it("preserves dash and minus characters instead of collapsing words", () => {
+    const cases = [
+      { source: "A-B", collapsed: "AB" },
+      { source: "A–B", collapsed: "AB" },
+      { source: "A−B", collapsed: "AB" },
+    ];
+
+    cases.forEach(({ source, collapsed }, index) => {
+      expect(() =>
+        matchSegmentsToLog(
+          [segment({ section: 1, titleZh: source })],
+          [
+            row({ lesson: 70 + index * 2, topic: collapsed }),
+            row({ lesson: 71 + index * 2, topic: "占位课程" }),
+          ],
+        ),
+      ).toThrow(/unmatched lesson segment/i);
+    });
   });
 
   it("does not semantically fuzz when complete order fallback is unavailable", () => {

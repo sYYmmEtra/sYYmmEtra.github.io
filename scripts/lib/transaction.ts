@@ -77,6 +77,13 @@ function assertValidAssignments(
         `Invalid lesson assignment identity in ${label}: source file and section plus a positive lesson are required`,
       );
     }
+
+    const expectedId = `lesson-${String(assignment.lesson).padStart(4, "0")}`;
+    if (assignment.id !== expectedId) {
+      throw new Error(
+        `Invalid lesson assignment ${assignment.id} in ${label}: lesson ${assignment.lesson} requires ID ${expectedId}`,
+      );
+    }
   }
 
   assertUniqueIds(
@@ -162,10 +169,66 @@ type CandidateProjectionPaths = Pick<
 
 export type SyncDestination = "metadata" | "content" | "index";
 export type SyncCommitPhase = "backup" | "install";
+export type SyncFilesystemOperation =
+  | "mkdir"
+  | "rename"
+  | "remove"
+  | "rmdir";
+export type SyncFilesystemPhase =
+  | "setup"
+  | "backup"
+  | "install"
+  | "rollback-remove"
+  | "rollback-restore"
+  | "rollback-parent-cleanup"
+  | "precommit-cleanup"
+  | "postcommit-cleanup";
 
 export interface SyncCommitStep {
   phase: SyncCommitPhase;
   destination: SyncDestination;
+}
+
+export interface SyncFilesystemOperationContext {
+  operation: SyncFilesystemOperation;
+  phase: SyncFilesystemPhase;
+  destination?: SyncDestination;
+  path: string;
+  sourcePath?: string;
+}
+
+export class SyncRollbackError extends AggregateError {
+  readonly committed = false as const;
+
+  constructor(
+    errors: readonly unknown[],
+    readonly recoveryPath: string,
+    cause: unknown,
+  ) {
+    super(
+      errors,
+      `Sync transaction failed before commit and recovery is incomplete. Preserved recovery artifacts at ${recoveryPath}`,
+      { cause },
+    );
+    this.name = "SyncRollbackError";
+  }
+}
+
+export class SyncPostCommitCleanupError extends AggregateError {
+  readonly committed = true as const;
+
+  constructor(
+    errors: readonly unknown[],
+    readonly recoveryPath: string,
+    cause: unknown,
+  ) {
+    super(
+      errors,
+      `Sync transaction committed, but cleanup failed. Recovery artifacts may remain at ${recoveryPath}`,
+      { cause },
+    );
+    this.name = "SyncPostCommitCleanupError";
+  }
 }
 
 export interface SyncTransactionOptions {
@@ -174,6 +237,10 @@ export interface SyncTransactionOptions {
   validator(candidate: SyncCandidatePaths): void | Promise<void>;
   /** Test seam for deterministic rollback coverage; called after each rename. */
   afterCommitStep?(step: SyncCommitStep): void | Promise<void>;
+  /** Narrow fault seam called immediately before a guarded filesystem mutation. */
+  beforeFilesystemOperation?(
+    operation: SyncFilesystemOperationContext,
+  ): void | Promise<void>;
 }
 
 interface ProjectionDestination {
@@ -182,6 +249,14 @@ interface ProjectionDestination {
   current: string;
   backup: string;
 }
+
+interface FilesystemOperationScope {
+  phase: SyncFilesystemPhase;
+  destination?: SyncDestination;
+}
+
+type FilesystemFaultInjector =
+  SyncTransactionOptions["beforeFilesystemOperation"];
 
 async function pathExists(target: string): Promise<boolean> {
   try {
@@ -203,12 +278,26 @@ function assertTransactionPath(websiteRoot: string, target: string): void {
   assertWebsiteWritePath(websiteRoot, target);
 }
 
+async function injectFilesystemFault(
+  faultInjector: FilesystemFaultInjector,
+  operation: SyncFilesystemOperationContext,
+): Promise<void> {
+  await faultInjector?.(operation);
+}
+
 async function safeMkdir(
   websiteRoot: string,
   target: string,
-  options: { recursive?: boolean } = {},
+  options: { recursive?: boolean },
+  faultInjector: FilesystemFaultInjector,
+  scope: FilesystemOperationScope,
 ): Promise<void> {
   assertTransactionPath(websiteRoot, target);
+  await injectFilesystemFault(faultInjector, {
+    operation: "mkdir",
+    ...scope,
+    path: target,
+  });
   await fs.mkdir(target, options);
 }
 
@@ -216,18 +305,48 @@ async function safeRename(
   websiteRoot: string,
   source: string,
   destination: string,
+  faultInjector: FilesystemFaultInjector,
+  scope: FilesystemOperationScope,
 ): Promise<void> {
   assertTransactionPath(websiteRoot, source);
   assertTransactionPath(websiteRoot, destination);
+  await injectFilesystemFault(faultInjector, {
+    operation: "rename",
+    ...scope,
+    path: destination,
+    sourcePath: source,
+  });
   await fs.rename(source, destination);
 }
 
 async function safeRemove(
   websiteRoot: string,
   target: string,
+  faultInjector: FilesystemFaultInjector,
+  scope: FilesystemOperationScope,
 ): Promise<void> {
   assertTransactionPath(websiteRoot, target);
+  await injectFilesystemFault(faultInjector, {
+    operation: "remove",
+    ...scope,
+    path: target,
+  });
   await fs.rm(target, { recursive: true, force: true });
+}
+
+async function safeRmdir(
+  websiteRoot: string,
+  target: string,
+  faultInjector: FilesystemFaultInjector,
+  scope: FilesystemOperationScope,
+): Promise<void> {
+  assertTransactionPath(websiteRoot, target);
+  await injectFilesystemFault(faultInjector, {
+    operation: "rmdir",
+    ...scope,
+    path: target,
+  });
+  await fs.rmdir(target);
 }
 
 async function validateCandidateEntry(
@@ -303,6 +422,8 @@ async function ensureDestinationParent(
   websiteRoot: string,
   destination: string,
   createdParents: string[],
+  faultInjector: FilesystemFaultInjector,
+  scope: FilesystemOperationScope,
 ): Promise<void> {
   const parent = path.dirname(destination);
   const relative = path.relative(websiteRoot, parent);
@@ -322,19 +443,44 @@ async function ensureDestinationParent(
       continue;
     }
 
-    await safeMkdir(websiteRoot, current);
+    await safeMkdir(websiteRoot, current, {}, faultInjector, scope);
     createdParents.push(current);
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function recoveryStepError(message: string, cause: unknown): Error {
+  return new Error(`${message}: ${errorMessage(cause)}`, { cause });
+}
+
+class ArtifactCleanupError extends Error {
+  constructor(
+    readonly artifactPath: string,
+    cause: unknown,
+  ) {
+    super(
+      `Failed to clean transaction artifact ${artifactPath}: ${errorMessage(cause)}`,
+      { cause },
+    );
+    this.name = "ArtifactCleanupError";
   }
 }
 
 async function removeCreatedParents(
   websiteRoot: string,
   createdParents: readonly string[],
-): Promise<void> {
+  faultInjector: FilesystemFaultInjector,
+): Promise<unknown[]> {
+  const errors: unknown[] = [];
+
   for (const parent of [...createdParents].reverse()) {
-    assertTransactionPath(websiteRoot, parent);
     try {
-      await fs.rmdir(parent);
+      await safeRmdir(websiteRoot, parent, faultInjector, {
+        phase: "rollback-parent-cleanup",
+      });
     } catch (error) {
       if (
         error instanceof Error &&
@@ -343,9 +489,16 @@ async function removeCreatedParents(
       ) {
         continue;
       }
-      throw error;
+      errors.push(
+        recoveryStepError(
+          `Failed to remove transaction-created parent ${parent} during rollback`,
+          error,
+        ),
+      );
     }
   }
+
+  return errors;
 }
 
 async function rollbackProjection(
@@ -354,39 +507,97 @@ async function rollbackProjection(
   installed: ReadonlySet<SyncDestination>,
   backedUp: ReadonlySet<SyncDestination>,
   createdParents: readonly string[],
-): Promise<void> {
+  faultInjector: FilesystemFaultInjector,
+): Promise<unknown[]> {
+  const errors: unknown[] = [];
+  const failedRemovals = new Set<SyncDestination>();
+
   for (const destination of [...destinations].reverse()) {
     if (installed.has(destination.name)) {
-      await safeRemove(websiteRoot, destination.current);
+      try {
+        await safeRemove(
+          websiteRoot,
+          destination.current,
+          faultInjector,
+          {
+            phase: "rollback-remove",
+            destination: destination.name,
+          },
+        );
+      } catch (error) {
+        failedRemovals.add(destination.name);
+        errors.push(
+          recoveryStepError(
+            `Failed to remove installed ${destination.name} projection at ${destination.current} during rollback`,
+            error,
+          ),
+        );
+      }
     }
   }
 
   for (const destination of [...destinations].reverse()) {
-    if (backedUp.has(destination.name)) {
-      await ensureDestinationParent(websiteRoot, destination.current, []);
+    if (
+      !backedUp.has(destination.name) ||
+      failedRemovals.has(destination.name)
+    ) {
+      continue;
+    }
+
+    try {
+      await ensureDestinationParent(
+        websiteRoot,
+        destination.current,
+        [],
+        faultInjector,
+        {
+          phase: "rollback-restore",
+          destination: destination.name,
+        },
+      );
       await safeRename(
         websiteRoot,
         destination.backup,
         destination.current,
+        faultInjector,
+        {
+          phase: "rollback-restore",
+          destination: destination.name,
+        },
+      );
+    } catch (error) {
+      errors.push(
+        recoveryStepError(
+          `Failed to restore ${destination.name} backup from ${destination.backup} during rollback`,
+          error,
+        ),
       );
     }
   }
 
-  await removeCreatedParents(websiteRoot, createdParents);
+  errors.push(
+    ...(await removeCreatedParents(
+      websiteRoot,
+      createdParents,
+      faultInjector,
+    )),
+  );
+  return errors;
 }
 
 async function removeSyncTmpIfCreated(
   websiteRoot: string,
   syncTmp: string,
   syncTmpCreated: boolean,
+  faultInjector: FilesystemFaultInjector,
+  phase: "precommit-cleanup" | "postcommit-cleanup",
 ): Promise<void> {
   if (!syncTmpCreated) {
     return;
   }
 
-  assertTransactionPath(websiteRoot, syncTmp);
   try {
-    await fs.rmdir(syncTmp);
+    await safeRmdir(websiteRoot, syncTmp, faultInjector, { phase });
   } catch (error) {
     if (
       error instanceof Error &&
@@ -399,20 +610,41 @@ async function removeSyncTmpIfCreated(
   }
 }
 
+async function cleanupTransactionArtifacts(
+  websiteRoot: string,
+  transactionRoot: string,
+  syncTmp: string,
+  syncTmpCreated: boolean,
+  faultInjector: FilesystemFaultInjector,
+  phase: "precommit-cleanup" | "postcommit-cleanup",
+): Promise<void> {
+  try {
+    await safeRemove(websiteRoot, transactionRoot, faultInjector, { phase });
+  } catch (error) {
+    throw new ArtifactCleanupError(transactionRoot, error);
+  }
+
+  try {
+    await removeSyncTmpIfCreated(
+      websiteRoot,
+      syncTmp,
+      syncTmpCreated,
+      faultInjector,
+      phase,
+    );
+  } catch (error) {
+    throw new ArtifactCleanupError(syncTmp, error);
+  }
+}
+
 export async function withSyncTransaction(
   options: SyncTransactionOptions,
 ): Promise<void> {
   const websiteRoot = path.resolve(resolveExistingPath(options.websiteRoot));
   const syncTmp = path.join(websiteRoot, ".sync-tmp");
-  assertTransactionPath(websiteRoot, syncTmp);
-  const syncTmpCreated = !(await pathExists(syncTmp));
-  await safeMkdir(websiteRoot, syncTmp, { recursive: true });
-
   const transactionRoot = path.join(syncTmp, randomUUID());
   const candidateRoot = path.join(transactionRoot, "candidate");
   const backupRoot = path.join(transactionRoot, "backup");
-  await safeMkdir(websiteRoot, candidateRoot, { recursive: true });
-
   const canonicalCandidate: CandidateProjectionPaths = {
     metadata: path.join(candidateRoot, "metadata"),
     content: path.join(candidateRoot, "src/content/ai-daily"),
@@ -451,14 +683,48 @@ export async function withSyncTransaction(
   const installed = new Set<SyncDestination>();
   const backedUp = new Set<SyncDestination>();
   const createdParents: string[] = [];
+  let syncTmpCreated = false;
+  let syncTmpReady = false;
+  let committed = false;
 
   try {
-    await safeMkdir(websiteRoot, canonicalCandidate.metadata, {
-      recursive: true,
-    });
-    await safeMkdir(websiteRoot, canonicalCandidate.content, {
-      recursive: true,
-    });
+    assertTransactionPath(websiteRoot, syncTmp);
+    syncTmpCreated = !(await pathExists(syncTmp));
+    await safeMkdir(
+      websiteRoot,
+      syncTmp,
+      { recursive: true },
+      options.beforeFilesystemOperation,
+      { phase: "setup" },
+    );
+    syncTmpReady = true;
+    await safeMkdir(
+      websiteRoot,
+      candidateRoot,
+      { recursive: true },
+      options.beforeFilesystemOperation,
+      { phase: "setup" },
+    );
+    await safeMkdir(
+      websiteRoot,
+      canonicalCandidate.metadata,
+      { recursive: true },
+      options.beforeFilesystemOperation,
+      {
+        phase: "setup",
+        destination: "metadata",
+      },
+    );
+    await safeMkdir(
+      websiteRoot,
+      canonicalCandidate.content,
+      { recursive: true },
+      options.beforeFilesystemOperation,
+      {
+        phase: "setup",
+        destination: "content",
+      },
+    );
     await options.writer(candidate);
     await validateCandidateProjection(
       websiteRoot,
@@ -478,7 +744,13 @@ export async function withSyncTransaction(
       assertTransactionPath(websiteRoot, destination.backup);
     }
 
-    await safeMkdir(websiteRoot, backupRoot, { recursive: true });
+    await safeMkdir(
+      websiteRoot,
+      backupRoot,
+      { recursive: true },
+      options.beforeFilesystemOperation,
+      { phase: "backup" },
+    );
     for (const destination of destinations) {
       if (!(await pathExists(destination.current))) {
         continue;
@@ -488,6 +760,8 @@ export async function withSyncTransaction(
         websiteRoot,
         destination.current,
         destination.backup,
+        options.beforeFilesystemOperation,
+        { phase: "backup", destination: destination.name },
       );
       backedUp.add(destination.name);
       await options.afterCommitStep?.({
@@ -501,11 +775,15 @@ export async function withSyncTransaction(
         websiteRoot,
         destination.current,
         createdParents,
+        options.beforeFilesystemOperation,
+        { phase: "install", destination: destination.name },
       );
       await safeRename(
         websiteRoot,
         destination.candidate,
         destination.current,
+        options.beforeFilesystemOperation,
+        { phase: "install", destination: destination.name },
       );
       installed.add(destination.name);
       await options.afterCommitStep?.({
@@ -513,38 +791,82 @@ export async function withSyncTransaction(
         destination: destination.name,
       });
     }
+
+    // Explicit commit point: all three candidate projections are installed.
+    committed = true;
   } catch (error) {
-    let rollbackError: unknown;
-    try {
-      await rollbackProjection(
-        websiteRoot,
-        destinations,
-        installed,
-        backedUp,
-        createdParents,
+    if (committed || !syncTmpReady) {
+      throw error;
+    }
+
+    const rollbackErrors = await rollbackProjection(
+      websiteRoot,
+      destinations,
+      installed,
+      backedUp,
+      createdParents,
+      options.beforeFilesystemOperation,
+    );
+    if (rollbackErrors.length > 0) {
+      throw new SyncRollbackError(
+        [error, ...rollbackErrors],
+        transactionRoot,
+        error,
       );
-    } catch (caught) {
-      rollbackError = caught;
     }
 
-    let cleanupError: unknown;
     try {
-      await safeRemove(websiteRoot, transactionRoot);
-      await removeSyncTmpIfCreated(websiteRoot, syncTmp, syncTmpCreated);
-    } catch (caught) {
-      cleanupError = caught;
-    }
-
-    if (rollbackError || cleanupError) {
-      throw new AggregateError(
-        [error, rollbackError, cleanupError].filter(Boolean),
-        `Sync transaction failed and recovery was incomplete: ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error },
+      await cleanupTransactionArtifacts(
+        websiteRoot,
+        transactionRoot,
+        syncTmp,
+        syncTmpCreated,
+        options.beforeFilesystemOperation,
+        "precommit-cleanup",
+      );
+    } catch (cleanupError) {
+      const recoveryPath =
+        cleanupError instanceof ArtifactCleanupError
+          ? cleanupError.artifactPath
+          : transactionRoot;
+      throw new SyncRollbackError(
+        [
+          error,
+          recoveryStepError(
+            `Rollback succeeded, but transaction artifact cleanup failed at ${transactionRoot}`,
+            cleanupError,
+          ),
+        ],
+        recoveryPath,
+        error,
       );
     }
     throw error;
   }
 
-  await safeRemove(websiteRoot, transactionRoot);
-  await removeSyncTmpIfCreated(websiteRoot, syncTmp, syncTmpCreated);
+  try {
+    await cleanupTransactionArtifacts(
+      websiteRoot,
+      transactionRoot,
+      syncTmp,
+      syncTmpCreated,
+      options.beforeFilesystemOperation,
+      "postcommit-cleanup",
+    );
+  } catch (cleanupError) {
+    const recoveryPath =
+      cleanupError instanceof ArtifactCleanupError
+        ? cleanupError.artifactPath
+        : transactionRoot;
+    throw new SyncPostCommitCleanupError(
+      [
+        recoveryStepError(
+          `Committed projection cleanup failed at ${transactionRoot}`,
+          cleanupError,
+        ),
+      ],
+      recoveryPath,
+      cleanupError,
+    );
+  }
 }

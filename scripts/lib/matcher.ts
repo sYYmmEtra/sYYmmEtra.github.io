@@ -57,14 +57,6 @@ const PRESENTATION_PUNCTUATION = new Set([
   "‘",
   "’",
   "`",
-  "-",
-  "‐",
-  "‑",
-  "‒",
-  "–",
-  "—",
-  "―",
-  "−",
 ]);
 const WHITE_SPACE = /\p{White_Space}/u;
 
