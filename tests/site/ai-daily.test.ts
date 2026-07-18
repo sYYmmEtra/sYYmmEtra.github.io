@@ -60,6 +60,10 @@ describe("AI Daily archive and articles", () => {
       expect(article).toContain("<table");
       expect(article).toContain("<code");
       expect(article).toContain("katex");
+      const stylesheetHref = /<link rel="stylesheet" href="([^"]+)"/.exec(article)?.[1];
+      expect(stylesheetHref).toMatch(/^\/_astro\/[^"/]+\.css$/);
+      const stylesheet = readFileSync(path.join(site.outputDirectory, stylesheetHref!.slice(1)), "utf8");
+      expect(stylesheet).toContain(".katex");
       expect(article).toContain('data-pagefind-body');
       expect(article).toContain('<a href="/ai-daily/" aria-current="page">AI Daily</a>');
       expect(article).toContain('data-article-toc');
