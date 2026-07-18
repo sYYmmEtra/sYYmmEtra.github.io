@@ -20,8 +20,15 @@ describe("runLinkCheck", () => {
       path: "dist",
       port: 43127,
       recurse: true,
-      linksToSkip: ["mailto:", "https://github.com/"],
     });
+    expect(receivedOptions?.linksToSkip).toBeTypeOf("function");
+    const linksToSkip = receivedOptions?.linksToSkip;
+    if (typeof linksToSkip !== "function") {
+      throw new Error("Expected functional link policy");
+    }
+    await expect(linksToSkip("http://localhost:43127/about/")).resolves.toBe(false);
+    await expect(linksToSkip("https://www.promptingguide.ai/")).resolves.toBe(true);
+    await expect(linksToSkip("mailto:hello@example.com")).resolves.toBe(true);
     expect(receivedOptions?.urlRewriteExpressions).toHaveLength(1);
     expect(receivedOptions?.urlRewriteExpressions?.[0]?.pattern.source).toBe(
       "^https:\\/\\/syymmetra\\.github\\.io\\/",

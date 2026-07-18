@@ -54,11 +54,19 @@ export async function runLinkCheck(options: RunLinkCheckOptions = {}): Promise<{
   const checker = options.checker ?? check;
   const logger = options.logger ?? console.log;
   const port = await allocatePort();
+  const internalOrigin = `http://localhost:${port}`;
   const result = await checker({
     path: "dist",
     port,
     recurse: true,
-    linksToSkip: ["mailto:", "https://github.com/"],
+    linksToSkip: async (url) => {
+      const candidate = new URL(url);
+      if (candidate.protocol === "mailto:") return true;
+      return (
+        (candidate.protocol === "http:" || candidate.protocol === "https:") &&
+        candidate.origin !== internalOrigin
+      );
+    },
     urlRewriteExpressions: [{
       pattern: /^https:\/\/syymmetra\.github\.io\//,
       replacement: `http://localhost:${port}/`,
