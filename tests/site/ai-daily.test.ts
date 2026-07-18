@@ -5,14 +5,17 @@ import { describe, expect, it } from "vitest";
 import { resolveMetadataDisplay, type SidecarMetadata } from "../../scripts/lib/metadata";
 import { buildPagefind, buildSite, pagefindLanguages, repoRoot, searchPagefind } from "./site-build";
 
+const lessonCount = () => readdirSync(path.join(repoRoot, "src", "content", "ai-daily"))
+  .filter((entry) => entry.endsWith(".md")).length;
+
 describe("AI Daily archive and articles", () => {
-  it("builds both archives with thirteen chronological cards and accessible filter/search wiring", () => {
+  it("builds both archives with one chronological card per current lesson and accessible filter/search wiring", () => {
     const site = buildSite("astro-ai-daily-");
     try {
       const archive = readFileSync(path.join(site.outputDirectory, "ai-daily", "index.html"), "utf8");
       const chineseArchive = readFileSync(path.join(site.outputDirectory, "zh", "ai-daily", "index.html"), "utf8");
 
-      expect(archive.match(/<article[^>]*class="lesson-card /g)).toHaveLength(13);
+      expect(archive.match(/<article[^>]*class="lesson-card /g)).toHaveLength(lessonCount());
       expect(archive).toContain('data-track="A"');
       expect(archive).toContain('data-depth="L1"');
       expect(archive).toContain('data-date="2026-07-17"');
@@ -50,7 +53,7 @@ describe("AI Daily archive and articles", () => {
         "utf8",
       );
 
-      expect(articlePages).toHaveLength(13);
+      expect(articlePages).toHaveLength(lessonCount());
       expect(existsSync(path.join(site.outputDirectory, "zh", "ai-daily", "prompt-engineering-foundations", "index.html"))).toBe(false);
       expect(article).toMatch(/<article\b(?=[^>]*\blang="zh-CN")(?=[^>]*\bdata-pagefind-body)[^>]*>/);
       expect(article).toContain("提示工程的本质");
@@ -80,7 +83,7 @@ describe("AI Daily archive and articles", () => {
       const urls = await searchPagefind(site.outputDirectory, "提示工程");
 
       expect(packageJson).toContain('pagefind --site dist --force-language zh');
-      expect(languages).toEqual({ zh: expect.objectContaining({ page_count: 13 }) });
+      expect(languages).toEqual({ zh: expect.objectContaining({ page_count: lessonCount() }) });
       expect(urls).toContain("https://pagefind.test/ai-daily/prompt-engineering-foundations/");
       expect(urls.some((url) => url.includes("/zh/ai-daily/"))).toBe(false);
     } finally {

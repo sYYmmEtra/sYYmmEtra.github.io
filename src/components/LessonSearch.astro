@@ -6,20 +6,28 @@ const copy = dictionaries[locale];
 ---
 
 <section class="lesson-search" data-lesson-search aria-label={copy.archive.searchLabel}>
+  <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
   <div data-pagefind-search></div>
-  <p data-pagefind-unavailable hidden>{copy.archive.searchLabel} is unavailable until the search index is generated.</p>
+  <p data-pagefind-unavailable role="status" aria-live="polite" hidden>{copy.archive.searchUnavailable}</p>
 </section>
 
-<script is:inline define:vars={{ placeholder: copy.archive.searchPlaceholder }}>
-  const root = document.querySelector("[data-lesson-search]");
-  const unavailable = root?.querySelector("[data-pagefind-unavailable]");
-  if (root) {
-    import("/pagefind/pagefind-ui.js")
-      .then(({ PagefindUI }) => new PagefindUI({
-        element: "[data-pagefind-search]",
-        showImages: false,
-        translations: { placeholder },
-      }))
-      .catch(() => { if (unavailable) unavailable.hidden = false; });
-  }
+<script is:inline define:vars={{ placeholder: copy.archive.searchPlaceholder, label: copy.archive.searchLabel }}>
+  (() => {
+    const root = document.querySelector("[data-lesson-search]");
+    const unavailable = root?.querySelector("[data-pagefind-unavailable]");
+    if (root) {
+      import("/pagefind/pagefind-ui.js")
+        .then(() => {
+          if (!window.PagefindUI) throw new Error("Pagefind UI did not initialize");
+          const pagefind = new window.PagefindUI({
+            element: "[data-pagefind-search]",
+            showImages: false,
+            translations: { placeholder },
+          });
+          root.querySelector(".pagefind-ui__search-input")?.setAttribute("aria-label", label);
+          return pagefind;
+        })
+        .catch(() => { if (unavailable) unavailable.hidden = false; });
+    }
+  })();
 </script>

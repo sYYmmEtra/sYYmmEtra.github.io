@@ -130,6 +130,16 @@
       },
       "sourceHash": "sha256:48409f105f1e545dc5aab14b7eefc53e2c9df97d4bdbf49cb086f6dc34536f0c",
       "slug": "constrained-decoding-format-tax-tool-routing"
+    },
+    {
+      "id": "lesson-0014",
+      "lesson": 14,
+      "source": {
+        "file": "lessons/2026-07-18.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:7c9c3ca1f32ea3f460e67fd8be3be2947a4f5395e589331257ae78cacb2ce7fb",
+      "slug": "lesson-0014"
     }
   ]
 }

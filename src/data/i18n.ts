@@ -14,6 +14,8 @@ export const en = {
     switchLanguage: "中文",
     primaryNavigation: "Primary navigation",
     brandHome: "sYYmmEtra home",
+    openNavigation: "Open navigation",
+    closeNavigation: "Close navigation",
   },
   hero: {
     eyebrow: "Software engineer · AI engineering learner",
@@ -27,6 +29,7 @@ export const en = {
     description: "A growing archive of learning notes. Original articles are in Chinese.",
     searchLabel: "Search lessons",
     searchPlaceholder: "Search AI Daily",
+    searchUnavailable: "Search is unavailable until the index is generated.",
     filterTrack: "Track",
     filterDepth: "Depth",
     filterDate: "Date",
@@ -96,6 +99,8 @@ export const zhCN = {
     switchLanguage: "English",
     primaryNavigation: "主导航",
     brandHome: "sYYmmEtra 首页",
+    openNavigation: "打开导航",
+    closeNavigation: "关闭导航",
   },
   hero: {
     eyebrow: "软件工程师 · AI 工程学习者",
@@ -109,6 +114,7 @@ export const zhCN = {
     description: "持续更新的学习笔记归档，文章原文为中文。",
     searchLabel: "搜索课程",
     searchPlaceholder: "搜索 AI Daily",
+    searchUnavailable: "搜索索引生成前暂不可用。",
     filterTrack: "轨道",
     filterDepth: "深度",
     filterDate: "日期",

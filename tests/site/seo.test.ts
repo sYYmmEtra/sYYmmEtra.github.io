@@ -1,11 +1,13 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { rssItemFromMetadata } from "../../src/lib/rss";
 import type { SidecarMetadata } from "../../scripts/lib/metadata";
-import { buildSite } from "./site-build";
+import { buildSite, repoRoot } from "./site-build";
 
 const origin = "https://syymmetra.github.io";
+const lessonCount = () => readdirSync(path.join(repoRoot, "src", "content", "ai-daily"))
+  .filter((entry) => entry.endsWith(".md")).length;
 const uiPairs = [["/", "/zh/"], ["/ai-daily/", "/zh/ai-daily/"], ["/projects/", "/zh/projects/"], ["/about/", "/zh/about/"]] as const;
 
 function pageFile(outputDirectory: string, pathname: string): string {
@@ -90,10 +92,10 @@ describe("SEO and public syndication", () => {
       expect(rss).toMatch(/^<\?xml[^>]*\?>\s*<rss\b/);
       expect(rss).not.toMatch(/(?<!&)&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[\da-f]+;)/i);
       const items = [...rss.matchAll(/<item>([\s\S]*?)<\/item>/g)].map((match) => match[1]);
-      expect(items).toHaveLength(13);
+      expect(items).toHaveLength(lessonCount());
       const links = items.map((item) => xmlField(item, "link"));
       const dates = items.map((item) => xmlField(item, "pubDate"));
-      expect(new Set(links).size).toBe(13);
+      expect(new Set(links).size).toBe(lessonCount());
       expect(links.every((link) => link.startsWith(`${origin}/ai-daily/`) && link.endsWith("/"))).toBe(true);
       expect(dates.every((date) => !Number.isNaN(Date.parse(date)))).toBe(true);
       expect(dates.map(Date.parse)).toEqual([...dates.map(Date.parse)].sort((left, right) => right - left));

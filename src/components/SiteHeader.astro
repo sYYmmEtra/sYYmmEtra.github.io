@@ -33,7 +33,27 @@ const languageHref = languageHrefOverride ?? (locale === "zh-CN"
       <span class="site-nav__mark" aria-hidden="true"></span>
       <span>{site.name}</span>
     </a>
-    <div class="site-nav__links">
+    <button
+      class="mobile-nav-toggle control"
+      type="button"
+      aria-label={copy.navigation.openNavigation}
+      aria-expanded="false"
+      aria-controls="mobile-navigation"
+      data-mobile-nav-toggle
+    >
+      <span aria-hidden="true">☰</span>
+    </button>
+    <div
+      class="site-nav__links"
+      id="mobile-navigation"
+      aria-label={copy.navigation.primaryNavigation}
+      aria-hidden="true"
+      hidden
+      data-mobile-navigation
+    >
+      <button class="mobile-nav__close control" type="button" aria-label={copy.navigation.closeNavigation} data-mobile-nav-close>
+        <span aria-hidden="true">×</span>
+      </button>
       {
         visibleNavigation.map((item) => {
           const href = localizedHref(item.href);
@@ -49,5 +69,53 @@ const languageHref = languageHrefOverride ?? (locale === "zh-CN"
       </a>
     </div>
     <ThemeToggle locale={locale} />
+    <script is:inline>
+      const mobileToggle = document.querySelector("[data-mobile-nav-toggle]");
+      const mobileMenu = document.querySelector("[data-mobile-navigation]");
+      const mobileClose = document.querySelector("[data-mobile-nav-close]");
+      const mobile = window.matchMedia("(max-width: 38rem)");
+
+      const setClosed = (restoreFocus = false) => {
+        if (!(mobileToggle instanceof HTMLButtonElement) || !(mobileMenu instanceof HTMLElement)) return;
+        mobileMenu.hidden = true;
+        mobileMenu.setAttribute("aria-hidden", "true");
+        mobileToggle.setAttribute("aria-expanded", "false");
+        if (restoreFocus) mobileToggle.focus();
+      };
+      const setOpen = () => {
+        if (!(mobileToggle instanceof HTMLButtonElement) || !(mobileMenu instanceof HTMLElement)) return;
+        mobileMenu.hidden = false;
+        mobileMenu.setAttribute("aria-hidden", "false");
+        mobileToggle.setAttribute("aria-expanded", "true");
+        requestAnimationFrame(() => mobileMenu.querySelector("a") instanceof HTMLAnchorElement && mobileMenu.querySelector("a").focus());
+      };
+      const applyBreakpoint = () => {
+        if (!(mobileToggle instanceof HTMLButtonElement) || !(mobileMenu instanceof HTMLElement)) return;
+        if (mobile.matches) {
+          mobileToggle.hidden = false;
+          setClosed();
+        } else {
+          mobileToggle.hidden = true;
+          mobileMenu.hidden = false;
+          mobileMenu.removeAttribute("aria-hidden");
+          mobileToggle.setAttribute("aria-expanded", "false");
+        }
+      };
+
+      mobileToggle?.addEventListener("click", () => {
+        if (mobileMenu instanceof HTMLElement && mobileMenu.hidden) setOpen();
+        else setClosed();
+      });
+      mobileClose?.addEventListener("click", () => setClosed(true));
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && mobile.matches && mobileMenu instanceof HTMLElement && !mobileMenu.hidden) setClosed(true);
+      });
+      document.addEventListener("pointerdown", (event) => {
+        if (mobile.matches && mobileMenu instanceof HTMLElement && !mobileMenu.hidden && !mobileMenu.contains(event.target) && event.target !== mobileToggle) setClosed();
+      });
+      mobileMenu?.addEventListener("click", (event) => { if (event.target instanceof HTMLAnchorElement) setClosed(); });
+      mobile.addEventListener("change", applyBreakpoint);
+      applyBreakpoint();
+    </script>
   </nav>
 </header>
