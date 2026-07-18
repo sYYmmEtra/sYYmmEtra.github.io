@@ -14,6 +14,7 @@
     "build:astro": "astro build",
     "search:index": "pagefind --site dist --force-language zh",
     "build": "npm run build:astro && npm run search:index",
+    "links:check": "tsx scripts/check-links.ts",
     "preview": "astro preview",
     "test:e2e": "playwright test"
   },

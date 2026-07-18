@@ -311,7 +311,7 @@ async function runGates(runner: CommandRunner, root: string): Promise<void> {
     ["npm", ["test"]],
     ["npx", ["tsc", "--noEmit"]],
     ["npm", ["run", "build"]],
-    ["npx", ["linkinator", "dist", "--recurse", "--skip", "mailto:|https://github.com/"]],
+    ["npm", ["run", "links:check"]],
     ["npm", ["run", "test:e2e"]],
   ];
   for (const [command, args] of gates) {

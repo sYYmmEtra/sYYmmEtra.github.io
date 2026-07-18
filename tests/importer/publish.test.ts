@@ -301,7 +301,7 @@ describe("runPublish", () => {
     "npm test",
     "npx tsc --noEmit",
     "npm run build",
-    "npx linkinator dist --recurse --skip mailto:|https://github.com/",
+    "npm run links:check",
     "npm run test:e2e",
   ])("stops before staging when the %s gate fails", async (gateFailure) => {
     const root = await makeRepository();
