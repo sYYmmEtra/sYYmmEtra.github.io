@@ -9,15 +9,20 @@ date: 2026-07-18
 track: B
 depth: L2
 titleZh: 信息论基础：熵 / 交叉熵 / KL 散度
-titleEn: null
+titleEn: "Information Theory Fundamentals: Entropy / Cross-Entropy / KL Divergence"
 summaryZh: 信息=意外(−log p)、熵H(p)=平均意外=最优编码比特下界(香农源编码);交叉熵H(p,q)=用错模型q编码真实p的账单、one-hot下退化为NLL=MLE(回填day5),PPL=exp(CE);KL(p‖q)=H(p,q)−H(p)≥0=多付的账、不对称故非距离,监督训练=最小化KL(真实‖模型);前向KL=mode-covering(SFT)/反向KL=mode-seeking(RLHF惩罚β·KL(π_θ‖π_ref)当牵引绳),经典直觉2025-26被实证反驳非KL方向内在属性;InfoNCE就是(N+1)选1的交叉熵、且是互信息I(q;k⁺)下界(合龙day11);温度τ直接调分布的熵。误区:KL当距离、熵越大越好、交叉熵vs熵角色不能同源
-summaryEn: null
+summaryEn: Explains self-information as surprise, entropy as average surprise and the lower bound for optimal coding, and cross-entropy as the cost of encoding a true distribution with a model. Derives KL divergence as excess cost, emphasizing its nonnegativity and asymmetry, and connects these ideas to NLL, MLE, perplexity, InfoNCE, temperature, SFT, and RLHF.
 slug: lesson-0014
-tags: []
+tags:
+  - information-theory
+  - entropy
+  - cross-entropy
+  - kl-divergence
+  - infonce
 sourceStatus: unreviewed
 sourceStatusHash: sha256:7c9c3ca1f32ea3f460e67fd8be3be2947a4f5395e589331257ae78cacb2ce7fb
-metadataStatus: pending
-metadataSourceHash: null
+metadataStatus: current
+metadataSourceHash: sha256:7c9c3ca1f32ea3f460e67fd8be3be2947a4f5395e589331257ae78cacb2ce7fb
 featured: false
 ---
 # 📅 2026-07-18 · 讲14 · 轨道B · 信息论基础：熵 / 交叉熵 / KL 散度 · 深度 L2
