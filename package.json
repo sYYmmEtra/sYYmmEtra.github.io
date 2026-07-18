@@ -10,6 +10,7 @@
     "sync": "tsx scripts/sync-ai-daily.ts",
     "publish": "tsx scripts/publish.ts",
     "metadata:enrich": "tsx scripts/enrich-metadata.ts",
+    "content:validate": "tsx scripts/validate-committed-content.ts",
     "build:astro": "astro build",
     "search:index": "pagefind --site dist --force-language zh",
     "build": "npm run build:astro && npm run search:index",

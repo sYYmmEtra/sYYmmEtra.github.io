@@ -5,7 +5,6 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import YAML from "yaml";
-import { z } from "zod";
 
 import {
   enrichMetadata as defaultEnrichMetadata,
@@ -24,6 +23,12 @@ import {
   SidecarMetadataSchema,
   type SidecarMetadata,
 } from "./lib/metadata";
+import {
+  SyncIndexLessonSchema,
+  SyncIndexSchema,
+  type SyncIndex,
+  type SyncIndexLesson,
+} from "./lib/sync-index";
 import { assertDisjointRoots, resolveExistingPath } from "./lib/paths";
 import {
   assertNoUnexpectedRemovals,
@@ -35,64 +40,6 @@ import {
 const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_WEBSITE_ROOT = path.resolve(SCRIPT_DIRECTORY, "..");
 const SIDECAR_FILE = /^(lesson-[0-9]{4})\.yml$/;
-
-const SyncIndexLessonSchema = z
-  .object({
-    id: z.string().regex(/^lesson-[0-9]{4}$/),
-    lesson: z.number().int().positive(),
-    source: z
-      .object({
-        file: z.string().regex(/^lessons\/\d{4}-\d{2}-\d{2}\.md$/),
-        section: z.number().int().positive(),
-      })
-      .strict(),
-    sourceHash: z.string().regex(/^sha256:[0-9a-f]{64}$/),
-    slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  })
-  .strict()
-  .superRefine((record, context) => {
-    const expected = `lesson-${String(record.lesson).padStart(4, "0")}`;
-    if (record.id !== expected) {
-      context.addIssue({
-        code: "custom",
-        path: ["id"],
-        message: `Lesson ${record.lesson} requires canonical ID ${expected}`,
-      });
-    }
-  });
-
-const SyncIndexSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    lessons: z.array(SyncIndexLessonSchema),
-  })
-  .strict()
-  .superRefine((index, context) => {
-    const ids = new Set<string>();
-    for (const [position, lesson] of index.lessons.entries()) {
-      if (ids.has(lesson.id)) {
-        context.addIssue({
-          code: "custom",
-          path: ["lessons", position, "id"],
-          message: `Duplicate sync index ID ${lesson.id}`,
-        });
-      }
-      ids.add(lesson.id);
-    }
-    const sorted = [...index.lessons].sort(
-      (left, right) => left.lesson - right.lesson || left.id.localeCompare(right.id),
-    );
-    if (index.lessons.some((lesson, position) => lesson.id !== sorted[position]?.id)) {
-      context.addIssue({
-        code: "custom",
-        path: ["lessons"],
-        message: "Sync index lessons must be sorted by lesson number",
-      });
-    }
-  });
-
-type SyncIndex = z.infer<typeof SyncIndexSchema>;
-type SyncIndexLesson = z.infer<typeof SyncIndexLessonSchema>;
 
 interface SourceSnapshotEntry {
   kind: "file" | "symlink";

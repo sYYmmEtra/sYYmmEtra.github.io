@@ -1,0 +1,134 @@
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: actions/configure-pages@v5
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
+      - run: npm run content:validate
+      - run: npm run build
+      - name: Validate generated site
+        shell: bash
+        run: |
+          set -euo pipefail
+          for output in \
+            dist/index.html \
+            dist/ai-daily/index.html \
+            dist/zh/ai-daily/index.html \
+            dist/rss.xml \
+            dist/sitemap-index.xml \
+            dist/pagefind/pagefind.js; do
+            test -f "$output"
+          done
+
+          lesson_count="$(node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+
+          const index = JSON.parse(await readFile("sync-index.json", "utf8"));
+          if (
+            !index ||
+            typeof index !== "object" ||
+            Array.isArray(index) ||
+            index.schemaVersion !== 1 ||
+            !Array.isArray(index.lessons) ||
+            JSON.stringify(Object.keys(index).sort()) !== JSON.stringify(["lessons", "schemaVersion"])
+          ) {
+            throw new Error("sync-index.json must be a strict versioned lesson index");
+          }
+          console.log(index.lessons.length);
+          NODE
+          )"
+          test "$lesson_count" -gt 0
+
+          article_count="$(find dist/ai-daily -mindepth 2 -maxdepth 2 -type f -name index.html | wc -l | tr -d ' ')"
+          test "$article_count" -eq "$lesson_count"
+
+          zh_detail_count="$(find dist/zh/ai-daily -mindepth 2 -maxdepth 2 -type f -name index.html | wc -l | tr -d ' ')"
+          test "$zh_detail_count" -eq 0
+
+          node --input-type=module <<'NODE'
+          import { once } from "node:events";
+          import { createServer } from "node:http";
+          import { readFile, stat } from "node:fs/promises";
+          import path from "node:path";
+          import { LinkChecker, LinkState } from "linkinator";
+
+          const root = path.resolve("dist");
+          const server = createServer(async (request, response) => {
+            try {
+              const pathname = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname);
+              const target = path.resolve(root, `.${pathname}`);
+              if (target !== root && !target.startsWith(`${root}${path.sep}`)) throw new Error("Invalid path");
+              const file = (await stat(target)).isDirectory() ? path.join(target, "index.html") : target;
+              const body = await readFile(file);
+              response.writeHead(200, { "content-type": file.endsWith(".html") ? "text/html; charset=utf-8" : "application/octet-stream" });
+              response.end(body);
+            } catch {
+              response.writeHead(404);
+              response.end();
+            }
+          });
+          server.listen(0, "127.0.0.1");
+          await once(server, "listening");
+          const address = server.address();
+          if (!address || typeof address === "string") throw new Error("Unable to bind local link checker server");
+          const internalOrigin = `http://127.0.0.1:${address.port}`;
+
+          try {
+            const { links } = await new LinkChecker().check({
+              path: [`${internalOrigin}/index.html`],
+              recurse: true,
+              checkFragments: true,
+              linksToSkip: (url) => {
+                const candidate = new URL(url);
+                if (candidate.protocol === "mailto:") return true;
+                return (candidate.protocol === "http:" || candidate.protocol === "https:") && candidate.origin !== internalOrigin;
+              },
+            });
+            const broken = links.filter((link) => link.state === LinkState.BROKEN);
+            if (broken.length) {
+              console.error(broken);
+              process.exitCode = 1;
+            } else {
+              console.log(`Validated ${links.length} internal links.`);
+            }
+          } finally {
+            await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+          }
+          NODE
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
