@@ -13,7 +13,7 @@ const copy = dictionaries[locale];
     <h1 class="display-heading" id="hero-title">{copy.hero.title}</h1>
     <p class="hero__description">{copy.hero.description}</p>
     <div class="action-row">
-      <a class="action action--primary" href="#latest-lessons">{copy.hero.archiveAction}</a>
+      <a class="action action--primary" href={locale === "zh-CN" ? "/zh/ai-daily/" : "/ai-daily/"}>{copy.hero.archiveAction}</a>
       <a class="action" href={`mailto:${site.email}`}>{copy.hero.aboutAction}</a>
     </div>
   </div>

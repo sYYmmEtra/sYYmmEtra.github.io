@@ -1,0 +1,33 @@
+---
+import { dictionaries, type Locale } from "../data/i18n";
+
+interface Props { locale?: Locale; }
+const { locale = "en" } = Astro.props;
+const copy = dictionaries[locale];
+---
+
+<form class="lesson-filters" data-lesson-filters aria-label={copy.archive.title}>
+  <fieldset>
+    <legend>{copy.archive.filterTrack}</legend>
+    <label><input type="checkbox" name="track" value="A" /> {copy.home.trackLabel} A</label>
+    <label><input type="checkbox" name="track" value="B" /> {copy.home.trackLabel} B</label>
+    <label><input type="checkbox" name="track" value="C" /> {copy.home.trackLabel} C</label>
+  </fieldset>
+  <fieldset>
+    <legend>{copy.archive.filterDepth}</legend>
+    {(["L1", "L2", "L3", "L4"] as const).map((depth) => <label><input type="checkbox" name="depth" value={depth} /> {depth}</label>)}
+  </fieldset>
+  <fieldset class="lesson-filters__dates">
+    <legend>{copy.archive.filterDate}</legend>
+    <label><span class="visually-hidden">{copy.archive.filterDate} from</span><input type="date" name="from" /></label>
+    <span aria-hidden="true">–</span>
+    <label><span class="visually-hidden">{copy.archive.filterDate} to</span><input type="date" name="to" /></label>
+  </fieldset>
+  <button class="control lesson-filters__clear" type="button" data-lesson-clear>{copy.archive.clearFilters}</button>
+</form>
+<p class="lesson-filter-status" data-lesson-filter-status aria-live="polite"></p>
+<p class="lesson-filter-empty" data-lesson-no-results hidden>{copy.archive.noResults}</p>
+
+<script>
+  import "../scripts/lesson-filter";
+</script>

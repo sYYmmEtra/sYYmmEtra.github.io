@@ -3,11 +3,9 @@ import { en, type Locale } from "../data/i18n";
 import { navigation, site } from "../data/site";
 import ThemeToggle from "./ThemeToggle.astro";
 
-interface Props {
-  locale?: Locale;
-}
+interface Props { locale?: Locale; languageHref?: string; }
 
-const { locale = "en" } = Astro.props;
+const { locale = "en", languageHref: languageHrefOverride } = Astro.props;
 const copy = locale === "zh-CN" ? (await import("../data/i18n")).zhCN : en;
 const localizedHref = (href: string) =>
   locale === "zh-CN" ? (href === "/" ? "/zh/" : `/zh${href}`) : href;
@@ -18,9 +16,15 @@ const normalizePath = (pathname: string) => {
   return withoutIndex === "/" ? "/" : withoutIndex.replace(/\/+$/, "");
 };
 const normalizedCurrentPath = normalizePath(currentPath);
-const languageHref = locale === "zh-CN"
+const isCurrentNavigation = (key: string, href: string) => {
+  const normalizedHref = normalizePath(href);
+  return key === "archive"
+    ? normalizedCurrentPath === normalizedHref || normalizedCurrentPath.startsWith(`${normalizedHref}/`)
+    : normalizedCurrentPath === normalizedHref;
+};
+const languageHref = languageHrefOverride ?? (locale === "zh-CN"
   ? (currentPath.replace(/^\/zh(?=\/|$)/, "") || "/")
-  : `/zh${currentPath === "/" ? "/" : currentPath}`;
+  : `/zh${currentPath === "/" ? "/" : currentPath}`);
 ---
 
 <header class="site-header">
@@ -34,7 +38,7 @@ const languageHref = locale === "zh-CN"
         visibleNavigation.map((item) => {
           const href = localizedHref(item.href);
           return (
-            <a href={href} aria-current={normalizePath(href) === normalizedCurrentPath ? "page" : undefined}>
+            <a href={href} aria-current={isCurrentNavigation(item.key, href) ? "page" : undefined}>
               {copy.navigation[item.key]}
             </a>
           );

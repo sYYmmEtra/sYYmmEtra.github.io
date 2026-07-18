@@ -1,0 +1,13 @@
+---
+interface Heading { depth: number; slug: string; text: string; }
+interface Props { headings: Heading[]; locale?: "en" | "zh-CN"; }
+const { headings, locale = "en" } = Astro.props;
+const title = locale === "zh-CN" ? "目录" : "On this page";
+---
+
+<nav class="article-toc" data-article-toc aria-label={title}>
+  <p class="eyebrow">{title}</p>
+  <ol>
+    {headings.map((heading) => <li class:list={{ "article-toc__nested": heading.depth > 2 }}><a href={`#${heading.slug}`}>{heading.text}</a></li>)}
+  </ol>
+</nav>

@@ -9,11 +9,13 @@ interface Props {
   title?: string;
   description?: string;
   locale?: Locale;
+  languageHref?: string;
 }
 
 const {
   title = site.name,
   locale = "en",
+  languageHref,
 } = Astro.props;
 const description = Astro.props.description ?? (
   locale === "zh-CN" ? site.descriptionZh : site.description
@@ -53,7 +55,7 @@ const copy = locale === "zh-CN" ? (await import("../data/i18n")).zhCN : en;
   </head>
   <body>
     <a class="skip-link" href="#main-content">{copy.navigation.skipToContent}</a>
-    <SiteHeader locale={locale} />
+    <SiteHeader locale={locale} languageHref={languageHref} />
     <main class="site-main reading-shell" id="main-content">
       <slot />
     </main>

@@ -137,6 +137,58 @@ button:focus-visible, a:focus-visible {
 .lesson-entry small { display: inline-block; margin-top: 0.65rem; color: var(--ink-secondary); }
 .latest-lessons__empty { margin: 2rem 0 0; color: var(--ink-secondary); }
 
+.lesson-archive { max-width: 68rem; }
+.lesson-archive__header { max-width: 46rem; margin-bottom: 2rem; }
+.lesson-archive__header h1 { margin: 0.35rem 0 0.8rem; font-size: clamp(3rem, 7vw, 5.5rem); }
+.lesson-archive__header > p:not(.eyebrow) { margin: 0; color: var(--ink-secondary); font-size: 1.15rem; }
+.lesson-search { margin: 2rem 0; }
+.lesson-search .pagefind-ui__search-input { width: 100%; min-height: 2.75rem; border: 1px solid var(--border); border-radius: 0.7rem; background: var(--canvas); color: var(--ink); padding-inline: 0.8rem; font: inherit; }
+.lesson-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem 1.5rem; padding: 1rem 0; border-block: 1px solid var(--border); }
+.lesson-filters fieldset { display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; min-width: 0; margin: 0; padding: 0; border: 0; }
+.lesson-filters legend { margin-bottom: 0.3rem; color: var(--ink-secondary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.lesson-filters label { display: inline-flex; min-height: 2.75rem; align-items: center; gap: 0.35rem; }
+.lesson-filters input[type="checkbox"] { inline-size: 1.15rem; block-size: 1.15rem; accent-color: var(--track-a); }
+.lesson-filters input[type="date"] { min-height: 2.75rem; border: 1px solid var(--border); border-radius: 0.6rem; background: var(--canvas); color: var(--ink); padding-inline: 0.5rem; font: inherit; }
+.lesson-filters__dates { align-items: center; }
+.lesson-filters__clear { padding-inline: 0.8rem; font: inherit; }
+.lesson-filter-status { margin: 0.75rem 0 0; color: var(--ink-secondary); font-size: 0.84rem; }
+.lesson-filter-empty { margin: 1.5rem 0; color: var(--ink-secondary); }
+.lesson-archive__list { margin-top: 1.25rem; border-top: 1px solid var(--border); }
+.lesson-card { display: grid; grid-template-columns: minmax(10rem, 0.5fr) minmax(0, 1.5fr); gap: 1.25rem; padding: 1.4rem 0; border-bottom: 1px solid var(--border); transition: opacity 100ms ease; }
+.lesson-card[hidden] { display: none; }
+.lesson-card__meta { display: flex; flex-wrap: wrap; align-content: start; gap: 0.5rem 0.75rem; color: var(--ink-secondary); font-size: 0.82rem; }
+.lesson-card__body h2 { margin: 0.2rem 0 0; font-size: clamp(1.25rem, 2vw, 1.7rem); line-height: 1.2; letter-spacing: -0.018em; }
+.lesson-card__body h2 a { text-decoration: none; }
+.lesson-card__body p:not(.eyebrow) { margin: 0.7rem 0 0; color: var(--ink-secondary); }
+.lesson-card__body small { display: inline-block; margin-top: 0.6rem; color: var(--ink-secondary); }
+
+.article-layout { max-width: 68rem; }
+.article-layout__header { max-width: 50rem; padding-bottom: 2.5rem; border-bottom: 1px solid var(--border); }
+.article-layout__header h1 { margin: 0.35rem 0 1rem; font-size: clamp(2.5rem, 5vw, 4.8rem); }
+.article-layout__original { color: var(--ink-secondary); }
+.article-layout__meta { display: flex; flex-wrap: wrap; gap: 0.8rem 1.4rem; margin: 1.5rem 0; }
+.article-layout__meta div { display: grid; gap: 0.1rem; }
+.article-layout__meta dt { color: var(--ink-secondary); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.article-layout__meta dd { margin: 0; }
+.lesson-disclosure { color: var(--ink-secondary); font-size: 0.88rem; }
+.article-layout__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 15rem); gap: clamp(2rem, 6vw, 5rem); align-items: start; padding-top: 2.5rem; }
+.article-layout__body { min-width: 0; font-size: 1.06rem; line-height: 1.8; }
+.article-layout__body > :first-child { margin-top: 0; }
+.article-layout__body h1, .article-layout__body h2, .article-layout__body h3 { line-height: 1.2; letter-spacing: -0.02em; scroll-margin-top: 6rem; }
+.article-layout__body h1 { font-size: clamp(1.8rem, 4vw, 3rem); }
+.article-layout__body h2 { margin-top: 2.8rem; font-size: clamp(1.5rem, 3vw, 2.2rem); }
+.article-layout__body h3 { margin-top: 2rem; font-size: 1.3rem; }
+.article-layout__body pre { overflow-x: auto; padding: 1rem; background: color-mix(in srgb, var(--ink) 6%, var(--canvas)); font-size: 0.88em; }
+.article-layout__body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.article-layout__body th, .article-layout__body td { padding: 0.55rem 0.7rem; border: 1px solid var(--border); text-align: left; }
+.article-toc { position: sticky; top: 5.5rem; border-inline-start: 1px solid var(--border); padding-inline-start: 1rem; font-size: 0.86rem; }
+.article-toc ol { display: grid; gap: 0.45rem; margin: 0.6rem 0 0; padding: 0; list-style: none; }
+.article-toc__nested { padding-inline-start: 0.7rem; }
+.article-toc a { color: var(--ink-secondary); }
+.lesson-pager { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+.lesson-pager a { display: flex; min-height: 2.75rem; align-items: center; font-weight: 700; }
+.lesson-pager a:last-child { justify-content: end; text-align: right; }
+
 .home-previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1.5rem, 5vw, 5rem); padding-top: 1.5rem; border-top: 1px solid var(--border); }
 .home-previews p:not(.eyebrow) { max-width: 32rem; margin: 0.45rem 0 0.9rem; color: var(--ink-secondary); }
 .home-previews a { display: inline-flex; min-height: 2.75rem; align-items: center; font-weight: 700; }
@@ -161,6 +213,10 @@ button:focus-visible, a:focus-visible {
   .learning-rail { grid-template-columns: 4.75rem 1fr auto; }
   .learning-rail__depths { grid-column: 2 / -1; text-align: left; }
   .lesson-entry { grid-template-columns: 1fr; gap: 0.75rem; }
+  .lesson-card { grid-template-columns: 1fr; gap: 0.65rem; }
+  .lesson-filters { display: grid; }
+  .article-layout__grid { grid-template-columns: 1fr; }
+  .article-toc { position: static; order: -1; border-inline-start: 0; border-bottom: 1px solid var(--border); padding: 0 0 1rem; }
   .home-previews { grid-template-columns: 1fr; }
 }
 

@@ -1,0 +1,21 @@
+---
+import { getCollection, render } from "astro:content";
+import ArticleLayout from "../../layouts/ArticleLayout.astro";
+
+export async function getStaticPaths() {
+  const lessons = await getCollection("aiDaily");
+  return lessons.map((lesson) => ({ params: { slug: lesson.data.slug }, props: { lesson } }));
+}
+
+const { lesson } = Astro.props;
+const chronological = (await getCollection("aiDaily")).sort((left, right) =>
+  left.data.date.localeCompare(right.data.date) || left.data.lesson - right.data.lesson,
+);
+const index = chronological.findIndex((candidate) => candidate.id === lesson.id);
+const { Content, headings } = await render(lesson);
+const readingMinutes = Math.max(1, Math.ceil((lesson.body?.replace(/\s+/g, "").length ?? 1) / 450));
+---
+
+<ArticleLayout lesson={lesson} headings={headings.filter((heading) => heading.depth >= 2)} previous={chronological[index - 1]} next={chronological[index + 1]} readingMinutes={readingMinutes}>
+  <Content />
+</ArticleLayout>

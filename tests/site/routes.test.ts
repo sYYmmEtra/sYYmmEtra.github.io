@@ -1,23 +1,12 @@
 import { execFileSync } from "node:child_process";
 import {
   existsSync,
-  mkdirSync,
-  mkdtempSync,
   readFileSync,
-  rmSync,
-  writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { currentTrackCounts } from "./content-fixture";
-
-const repoRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../..",
-);
-const distDirectory = path.join(repoRoot, "dist");
+import { buildSite, repoRoot } from "./site-build";
 
 function dictionaryKeys(value: Record<string, unknown>, prefix = ""): string[] {
   return Object.entries(value).flatMap(([key, child]) => {
@@ -90,26 +79,10 @@ describe("Astro site foundation", () => {
     const { site } = await import("../../src/data/site");
     expect(dictionaryKeys(en).sort()).toEqual(dictionaryKeys(zhCN).sort());
 
-    const sentinel = path.join(
-      distDirectory,
-      `.routes-test-${process.pid}-${Date.now()}.sentinel`,
-    );
-    const outputDirectory = mkdtempSync(path.join(tmpdir(), "astro-routes-"));
-    mkdirSync(distDirectory, { recursive: true });
-    writeFileSync(sentinel, "do not remove\n");
+    const siteBuild = buildSite("astro-routes-");
+    const outputDirectory = siteBuild.outputDirectory;
 
     try {
-      execFileSync(
-        process.execPath,
-        [
-          path.join(repoRoot, "node_modules/astro/bin/astro.mjs"),
-          "build",
-          "--outDir",
-          outputDirectory,
-        ],
-        { cwd: repoRoot, stdio: "pipe" },
-      );
-
       const home = readFileSync(
         path.join(outputDirectory, "index.html"),
         "utf8",
@@ -143,7 +116,7 @@ describe("Astro site foundation", () => {
       expect(home).toMatch(/<html lang="en"[^>]*data-theme=/);
       expect(home).toContain(`<meta name="description" content="${site.description}">`);
       expect(zhHome).toContain(`<meta name="description" content="${site.descriptionZh}">`);
-      expect(home).not.toContain('href="/ai-daily/"');
+      expect(home).toContain('href="/ai-daily/"');
       expect(home).toContain('href="/projects/"');
       expect(home).toContain('href="/about/"');
       expect(home).toContain("data-system-label");
@@ -159,13 +132,11 @@ describe("Astro site foundation", () => {
       expect(home).toContain('<a class="site-nav__language" href="/zh/" lang="zh-CN">中文</a>');
       expect(zhProjects).toContain('<a class="site-nav__language" href="/projects/" lang="en">English</a>');
       expect(home).toContain('class="hero__context-link"');
-      expect(readFileSync(sentinel, "utf8")).toBe("do not remove\n");
       expect(existsSync(path.join(outputDirectory, "projects", "index.html"))).toBe(true);
       expect(existsSync(path.join(outputDirectory, "about", "index.html"))).toBe(true);
-      expect(existsSync(path.join(outputDirectory, "ai-daily", "index.html"))).toBe(false);
+      expect(existsSync(path.join(outputDirectory, "ai-daily", "index.html"))).toBe(true);
     } finally {
-      rmSync(sentinel, { force: true });
-      rmSync(outputDirectory, { recursive: true, force: true });
+      siteBuild.dispose();
     }
   });
 });

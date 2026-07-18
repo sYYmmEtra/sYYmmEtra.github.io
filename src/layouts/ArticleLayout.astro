@@ -1,0 +1,45 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { resolveMetadataDisplay } from "../../scripts/lib/metadata";
+import ArticleToc from "../components/ArticleToc.astro";
+import LessonDisclosure from "../components/LessonDisclosure.astro";
+import LessonPager from "../components/LessonPager.astro";
+import BaseLayout from "./BaseLayout.astro";
+import { dictionaries } from "../data/i18n";
+
+interface Heading { depth: number; slug: string; text: string; }
+interface Props {
+  lesson: CollectionEntry<"aiDaily">;
+  headings: Heading[];
+  previous?: CollectionEntry<"aiDaily">;
+  next?: CollectionEntry<"aiDaily">;
+  readingMinutes: number;
+}
+const { lesson, headings, previous, next, readingMinutes } = Astro.props;
+const copy = dictionaries.en;
+const display = resolveMetadataDisplay(lesson.data);
+const sourceStatus = copy.sourceStatus[lesson.data.sourceStatus];
+---
+
+<BaseLayout title={`${display.title} — AI Daily`} description={display.summary} languageHref="/zh/ai-daily/">
+  <article class="article-layout" lang="zh-CN" data-pagefind-body>
+    <header class="article-layout__header">
+      <p class="eyebrow">AI Daily · Lesson {lesson.data.lesson}</p>
+      <h1 class="display-heading">{display.title}</h1>
+      {display.originalInChinese && <p class="article-layout__original">{copy.archive.originalChinese}</p>}
+      <dl class="article-layout__meta">
+        <div><dt>Date</dt><dd><time datetime={lesson.data.date}>{lesson.data.date}</time></dd></div>
+        <div><dt>Track</dt><dd>{lesson.data.track}</dd></div>
+        <div><dt>Depth</dt><dd>{lesson.data.depth}</dd></div>
+        <div><dt>{copy.sourceStatus.label}</dt><dd>{sourceStatus}</dd></div>
+        <div><dt>Reading time</dt><dd>{readingMinutes} min</dd></div>
+      </dl>
+      <LessonDisclosure />
+    </header>
+    <div class="article-layout__grid">
+      <div class="article-layout__body"><slot /></div>
+      <ArticleToc headings={headings} />
+    </div>
+    <LessonPager previous={previous} next={next} track={lesson.data.track} />
+  </article>
+</BaseLayout>

@@ -1,0 +1,10 @@
+---
+import { dictionaries, type Locale } from "../data/i18n";
+interface Props { locale?: Locale; }
+const { locale = "en" } = Astro.props;
+const copy = dictionaries[locale];
+---
+
+<aside class="lesson-disclosure" aria-label="Disclosure">
+  {copy.disclosures.personalNote} <span aria-hidden="true">·</span> {copy.disclosures.aiAssisted} <span aria-hidden="true">·</span> {copy.disclosures.verifySources}
+</aside>

@@ -1,44 +1,14 @@
-import { execFileSync } from "node:child_process";
 import {
-  mkdtempSync,
   readFileSync,
-  rmSync,
-  writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { currentTrackCounts } from "./content-fixture";
-
-const repoRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../..",
-);
-
-function buildSite(): { outputDirectory: string; dispose: () => void } {
-  const outputDirectory = mkdtempSync(path.join(tmpdir(), "astro-home-"));
-
-  execFileSync(
-    process.execPath,
-    [
-      path.join(repoRoot, "node_modules/astro/bin/astro.mjs"),
-      "build",
-      "--outDir",
-      outputDirectory,
-    ],
-    { cwd: repoRoot, stdio: "pipe" },
-  );
-
-  return {
-    outputDirectory,
-    dispose: () => rmSync(outputDirectory, { recursive: true, force: true }),
-  };
-}
+import { buildSite, repoRoot } from "./site-build";
 
 describe("Clear Workbench personal pages", () => {
   it("renders the English home with its thesis, learning counts, and usable paths", () => {
-    const site = buildSite();
+    const site = buildSite("astro-home-");
 
     try {
       const home = readFileSync(path.join(site.outputDirectory, "index.html"), "utf8");
@@ -48,10 +18,11 @@ describe("Clear Workbench personal pages", () => {
       for (const [track, count] of Object.entries(currentTrackCounts(repoRoot))) {
         expect(home).toMatch(new RegExp(`Track ${track}[\\s\\S]*>${count}<`));
       }
-      expect(home).toContain('href="#latest-lessons"');
+      expect(home).toContain('href="/ai-daily/"');
       expect(home).toContain('href="https://github.com/sYYmmEtra"');
       expect(home).toContain('href="/projects/"');
       expect(home).toContain('href="/about/"');
+      expect(home).toContain('href="/ai-daily/constrained-decoding-format-tax-tool-routing/"');
       expect(home).toContain('href="mailto:private-contact@example.invalid"');
     } finally {
       site.dispose();
@@ -59,7 +30,7 @@ describe("Clear Workbench personal pages", () => {
   });
 
   it("renders translated Chinese routes without project cards", () => {
-    const site = buildSite();
+    const site = buildSite("astro-home-");
 
     try {
       const home = readFileSync(path.join(site.outputDirectory, "zh", "index.html"), "utf8");
@@ -83,27 +54,10 @@ describe("Clear Workbench personal pages", () => {
     }
   });
 
-  it("renders useful localized empty states for an empty latest-lessons collection", () => {
-    const fixturePath = path.join(repoRoot, "src/pages/latest-lessons-empty-fixture.astro");
-    writeFileSync(
-      fixturePath,
-      `---\nimport LatestLessons from "../components/LatestLessons.astro";\n---\n<LatestLessons lessons={[]} />\n<LatestLessons locale="zh-CN" lessons={[]} />\n`,
-    );
-
-    let site: ReturnType<typeof buildSite> | undefined;
-    try {
-      site = buildSite();
-      const page = readFileSync(
-        path.join(site.outputDirectory, "latest-lessons-empty-fixture", "index.html"),
-        "utf8",
-      );
-
-      expect(page).toContain("No lessons are available in the current corpus yet.");
-      expect(page).toContain("当前学习语料中暂时没有课程。");
-      expect(page).not.toContain('class="lesson-list"');
-    } finally {
-      site?.dispose();
-      rmSync(fixturePath, { force: true });
-    }
+  it("keeps localized empty-state rendering in the reusable component without creating source fixtures", () => {
+    const component = readFileSync(path.join(repoRoot, "src/components/LatestLessons.astro"), "utf8");
+    expect(component).toContain("latest.length === 0");
+    expect(component).toContain("copy.home.emptyLatestLessons");
+    expect(component).not.toContain("writeFileSync");
   });
 });

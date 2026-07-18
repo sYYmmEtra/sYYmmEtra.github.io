@@ -41,7 +41,7 @@ const latest = [...lessons]
               <time datetime={lesson.data.date}>{lesson.data.date}</time>
             </div>
             <div>
-              <h3>{display.title}</h3>
+              <h3><a href={`/ai-daily/${lesson.data.slug}/`}>{display.title}</a></h3>
               {index === 0 && <p>{display.summary}</p>}
               {display.originalInChinese && <small>{copy.home.originalChinese}</small>}
             </div>

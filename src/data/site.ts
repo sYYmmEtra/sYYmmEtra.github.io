@@ -11,7 +11,7 @@ export const site = {
 
 export const navigation = [
   { key: "home", href: "/", available: true },
-  { key: "archive", href: "/ai-daily/", available: false },
+  { key: "archive", href: "/ai-daily/", available: true },
   { key: "projects", href: "/projects/", available: true },
   { key: "about", href: "/about/", available: true },
 ] as const;

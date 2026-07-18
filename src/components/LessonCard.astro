@@ -1,0 +1,37 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { resolveMetadataDisplay } from "../../scripts/lib/metadata";
+import { dictionaries, type Locale } from "../data/i18n";
+
+interface Props {
+  lesson: CollectionEntry<"aiDaily">;
+  locale?: Locale;
+}
+
+const { lesson, locale = "en" } = Astro.props;
+const copy = dictionaries[locale];
+const display = locale === "en"
+  ? resolveMetadataDisplay(lesson.data)
+  : { title: lesson.data.titleZh, summary: lesson.data.summaryZh, originalInChinese: true };
+const href = `/ai-daily/${lesson.data.slug}/`;
+---
+
+<article
+  class={`lesson-card thread-${lesson.data.track.toLowerCase()}`}
+  data-lesson-card
+  data-track={lesson.data.track}
+  data-depth={lesson.data.depth}
+  data-date={lesson.data.date}
+>
+  <div class="lesson-card__meta">
+    <span class="thread-marker">{copy.home.trackLabel} {lesson.data.track}</span>
+    <span>{lesson.data.depth}</span>
+    <time datetime={lesson.data.date}>{lesson.data.date}</time>
+  </div>
+  <div class="lesson-card__body">
+    <p class="eyebrow">Lesson {lesson.data.lesson}</p>
+    <h2><a href={href}>{display.title}</a></h2>
+    <p>{display.summary}</p>
+    {display.originalInChinese && <small>{copy.archive.originalChinese}</small>}
+  </div>
+</article>

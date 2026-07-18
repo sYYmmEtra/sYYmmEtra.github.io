@@ -1,0 +1,22 @@
+---
+import { getCollection } from "astro:content";
+import LessonCard from "../../components/LessonCard.astro";
+import LessonFilters from "../../components/LessonFilters.astro";
+import LessonSearch from "../../components/LessonSearch.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { en } from "../../data/i18n";
+
+// The archive is deliberately latest-first: the current learning thread is the primary entry point.
+const lessons = (await getCollection("aiDaily")).sort((left, right) =>
+  right.data.date.localeCompare(left.data.date) || right.data.lesson - left.data.lesson,
+);
+---
+
+<BaseLayout title={`${en.archive.title} — sYYmmEtra`} description={en.archive.description}>
+  <section class="lesson-archive" aria-labelledby="archive-title">
+    <header class="lesson-archive__header"><p class="eyebrow">sYYmmEtra</p><h1 class="display-heading" id="archive-title">{en.archive.title}</h1><p>{en.archive.description}</p></header>
+    <LessonSearch />
+    <LessonFilters />
+    <div class="lesson-archive__list">{lessons.map((lesson) => <LessonCard lesson={lesson} />)}</div>
+  </section>
+</BaseLayout>

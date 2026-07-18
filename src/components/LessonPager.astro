@@ -1,0 +1,16 @@
+---
+import type { CollectionEntry } from "astro:content";
+
+interface Props {
+  previous?: CollectionEntry<"aiDaily">;
+  next?: CollectionEntry<"aiDaily">;
+  track: "A" | "B" | "C";
+}
+const { previous, next, track } = Astro.props;
+---
+
+<nav class="lesson-pager" data-lesson-pager aria-label="Lesson navigation">
+  {previous && <a href={`/ai-daily/${previous.data.slug}/`} rel="prev">Previous: {previous.data.lesson}</a>}
+  <a href={`/ai-daily/?track=${track}`}>More from Track {track}</a>
+  {next && <a href={`/ai-daily/${next.data.slug}/`} rel="next">Next: {next.data.lesson}</a>}
+</nav>
