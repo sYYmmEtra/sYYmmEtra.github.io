@@ -22,7 +22,6 @@ export const en = {
     title: "Turning daily AI learning into engineering judgment.",
     description: "A personal record of software, AI, and deliberate practice—built for technical readers.",
     archiveAction: "AI Daily",
-    aboutAction: "Get in touch",
   },
   archive: {
     title: "AI Daily",
@@ -47,7 +46,6 @@ export const en = {
     title: "About",
     role: "Software engineer learning and practicing AI engineering.",
     learning: "AI Daily is a public record of questions, notes, and practical study.",
-    contact: "Get in touch",
   },
   home: {
     learningPulse: "Learning Pulse",
@@ -107,7 +105,6 @@ export const zhCN = {
     title: "将每日 AI 学习转化为工程判断。",
     description: "一份面向技术读者的软件、AI 与刻意练习记录。",
     archiveAction: "AI Daily",
-    aboutAction: "联系我",
   },
   archive: {
     title: "AI Daily",
@@ -132,7 +129,6 @@ export const zhCN = {
     title: "关于",
     role: "软件工程师，正在学习和实践 AI 工程。",
     learning: "AI Daily 是公开记录问题、笔记与实践学习的地方。",
-    contact: "联系我",
   },
   home: {
     learningPulse: "学习脉冲",

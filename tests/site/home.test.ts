@@ -23,7 +23,9 @@ describe("Clear Workbench personal pages", () => {
       expect(home).toContain('href="/projects/"');
       expect(home).toContain('href="/about/"');
       expect(home).toContain('href="/ai-daily/constrained-decoding-format-tax-tool-routing/"');
-      expect(home).toContain('href="mailto:private-contact@example.invalid"');
+      expect(home).not.toContain("mailto:");
+      expect(home).not.toContain("@gmail.com");
+      expect(home).not.toContain('"email":');
     } finally {
       site.dispose();
     }
@@ -48,7 +50,8 @@ describe("Clear Workbench personal pages", () => {
       expect(home).not.toContain("Track C");
       expect(projects).toContain("尚未发布项目");
       expect(projects).not.toContain("project-card");
-      expect(about).toContain("联系我");
+      expect(about).toContain("GitHub");
+      expect(about).not.toContain("联系我");
     } finally {
       site.dispose();
     }

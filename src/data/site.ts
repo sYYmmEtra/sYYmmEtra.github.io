@@ -6,7 +6,6 @@ export const site = {
   descriptionZh: "关于软件、人工智能与刻意学习的个人笔记。",
   siteUrl: "https://syymmetra.github.io/",
   githubUrl: "https://github.com/sYYmmEtra",
-  email: "private-contact@example.invalid",
 } as const;
 
 export const personJsonLd = {
@@ -14,7 +13,6 @@ export const personJsonLd = {
   "@type": "Person",
   name: site.name,
   url: site.siteUrl,
-  email: site.email,
   sameAs: [site.githubUrl],
   jobTitle: site.role,
 } as const;

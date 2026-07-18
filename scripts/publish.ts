@@ -9,7 +9,6 @@ import { assertDisjointRoots } from "./lib/paths";
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_WEBSITE_ROOT = path.resolve(SCRIPT_DIRECTORY, "..");
-export const DEFAULT_AI_DAILY_SOURCE = "/path/to/ai-daily";
 const MAX_DIAGNOSTIC_LENGTH = 4096;
 const EXPECTED_ORIGINS = new Set([
   "https://github.com/sYYmmEtra/sYYmmEtra.github.io.git",
@@ -36,7 +35,7 @@ export type CommandRunner = (
 export interface PublishOptions {
   /** Test seam. The CLI always resolves its root from this script's location. */
   websiteRoot?: string;
-  /** Test seam. Production defaults to AI_DAILY_SOURCE or the configured source path. */
+  /** Test seam. Production requires AI_DAILY_SOURCE. */
   sourceRoot?: string;
   runner?: CommandRunner;
   logger?: (message: string) => void;
@@ -293,7 +292,13 @@ async function assertRepository(runner: CommandRunner, root: string): Promise<vo
 }
 
 export function resolveConfiguredSourceRoot(sourceRoot?: string): string {
-  return sourceRoot || process.env.AI_DAILY_SOURCE || DEFAULT_AI_DAILY_SOURCE;
+  const configured = sourceRoot || process.env.AI_DAILY_SOURCE;
+  if (!configured) {
+    throw new PublishError(
+      "AI_DAILY_SOURCE is required and must point to the read-only AI Daily repository",
+    );
+  }
+  return configured;
 }
 
 async function assertSourceIsolation(root: string, sourceRoot?: string): Promise<void> {

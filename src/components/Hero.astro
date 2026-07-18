@@ -14,7 +14,6 @@ const copy = dictionaries[locale];
     <p class="hero__description">{copy.hero.description}</p>
     <div class="action-row">
       <a class="action action--primary" href={locale === "zh-CN" ? "/zh/ai-daily/" : "/ai-daily/"}>{copy.hero.archiveAction}</a>
-      <a class="action" href={`mailto:${site.email}`}>{copy.hero.aboutAction}</a>
     </div>
   </div>
   <aside class="hero__context" aria-label={site.name}>

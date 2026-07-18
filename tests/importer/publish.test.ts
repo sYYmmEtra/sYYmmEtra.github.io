@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   PublishError,
-  DEFAULT_AI_DAILY_SOURCE,
   parsePorcelainStatus,
   resolveConfiguredSourceRoot,
   runPublish,
@@ -194,9 +193,11 @@ describe("runPublish", () => {
     }
   });
 
-  it("uses the standalone publish default source when AI_DAILY_SOURCE is unset", () => {
+  it("requires AI_DAILY_SOURCE when no source root is provided", () => {
     delete process.env.AI_DAILY_SOURCE;
-    expect(resolveConfiguredSourceRoot()).toBe(DEFAULT_AI_DAILY_SOURCE);
+    expect(() => resolveConfiguredSourceRoot()).toThrow(
+      "AI_DAILY_SOURCE is required and must point to the read-only AI Daily repository",
+    );
   });
   it.each([
     ["an unexpected remote URL", { remote: "https://github.com/sYYmmEtra/sYYmmEtra.github.io.evil.git" }, /Unexpected origin remote/],
