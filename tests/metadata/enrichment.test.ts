@@ -24,6 +24,12 @@ import {
 
 const HASH_A = `sha256:${"a".repeat(64)}`;
 const HASH_B = `sha256:${"b".repeat(64)}`;
+const PROVIDER_ENV = {
+  SYYMMETRA_CODEX_BASE_URL: "https://metadata-proxy.example",
+  SYYMMETRA_CODEX_MODEL: "gpt-5.6-sol",
+  SYYMMETRA_CODEX_REASONING_EFFORT: "medium",
+  SYYMMETRA_CODEX_API_KEY: "test-provider-secret",
+};
 const promptPath = path.resolve("scripts/metadata-prompt.md");
 const schemaPath = path.resolve("scripts/metadata-output.schema.json");
 const websiteRoot = path.resolve(".");
@@ -568,7 +574,7 @@ describe("source-path canonicalization policy", () => {
       runner,
       schemaPath,
       prompt: "fixed prompt",
-      parentEnv,
+      parentEnv: { ...PROVIDER_ENV, ...parentEnv },
     });
 
     expect(result).toEqual({ ok: true, value: validOutput() });
@@ -602,7 +608,7 @@ describe("source-path canonicalization policy", () => {
         runner,
         schemaPath,
         prompt: await fs.readFile(promptPath, "utf8"),
-        parentEnv,
+        parentEnv: { ...PROVIDER_ENV, ...parentEnv },
       }),
     ).rejects.toThrow(/must not expose the AI Daily source path/i);
     expect(runner).not.toHaveBeenCalled();
@@ -618,6 +624,7 @@ describe("source-path canonicalization policy", () => {
     const lexicalSource = `${nested}${path.sep}..`;
     const canonicalSecret = path.join(canonicalSource, "lessons", "secret.md");
     const parentEnv = {
+      ...PROVIDER_ENV,
       AI_DAILY_SOURCE: lexicalSource,
       CANONICAL_SECRET: canonicalSecret,
       UNRELATED_VALUE: "kept",
@@ -654,6 +661,7 @@ describe("source-path canonicalization policy", () => {
     await fs.symlink(physicalSource, sourceAlias);
     const physicalSecret = path.join(physicalSource, "private", "secret.md");
     const parentEnv = {
+      ...PROVIDER_ENV,
       AI_DAILY_SOURCE: sourceAlias,
       PHYSICAL_SECRET: physicalSecret,
       UNRELATED_VALUE: "kept",
@@ -699,6 +707,7 @@ describe("source-path canonicalization policy", () => {
       schemaPath,
       prompt: "fixed prompt",
       parentEnv: {
+        ...PROVIDER_ENV,
         AI_DAILY_SOURCE: sourceRoot,
         ALIASED_TOOL_HOME: sourceChildAlias,
         TOOL_PATH: `${safeBin}${path.delimiter}${sourceChildAlias}`,
@@ -720,6 +729,7 @@ describe("source-path canonicalization policy", () => {
     await fs.mkdir(stagingParent);
     await fs.symlink(physicalSource, sourceAlias);
     const parentEnv = {
+      ...PROVIDER_ENV,
       AI_DAILY_SOURCE: physicalSource,
       SOURCE_DOT: `See ${sourceAlias}.`,
       SOURCE_COMMA: `See ${sourceAlias}, next`,
@@ -801,6 +811,7 @@ describe("source-path canonicalization policy", () => {
       await fs.mkdir(stagingParent);
       await fs.symlink(physicalSource, sourceAlias);
       const parentEnv = {
+        ...PROVIDER_ENV,
         AI_DAILY_SOURCE: physicalSource,
         PUNCTUATED_ALIAS: `See ${sourceAlias}${delimiter}continued`,
         UNRELATED_VALUE: "kept",
@@ -855,6 +866,7 @@ describe("source-path canonicalization policy", () => {
 
   it("does not treat a relative source name as a substring of a larger word", async () => {
     const parentEnv = {
+      ...PROVIDER_ENV,
       AI_DAILY_SOURCE: "source",
       RELATED_PROSE: "sources remain available",
       UNRELATED_VALUE: "kept",
@@ -880,6 +892,7 @@ describe("source-path canonicalization policy", () => {
     await fs.mkdir(sourceRoot);
     await fs.mkdir(sibling);
     const parentEnv = {
+      ...PROVIDER_ENV,
       AI_DAILY_SOURCE: sourceRoot,
       BACKUP_PATH: sibling,
       UNRELATED_VALUE: "kept",
@@ -908,6 +921,7 @@ describe("Codex invocation and process runner", () => {
       schemaPath: "/private/site/scripts/metadata-output.schema.json",
       prompt: "fixed prompt",
       parentEnv: {
+        ...PROVIDER_ENV,
         AI_DAILY_SOURCE: sourcePath,
         PWD: sourcePath,
         PRESERVED: "yes",
@@ -925,6 +939,20 @@ describe("Codex invocation and process runner", () => {
         "read-only",
         "-c",
         "shell_environment_policy.inherit=none",
+        "-c",
+        'model_provider="metadata_proxy"',
+        "-c",
+        'model="gpt-5.6-sol"',
+        "-c",
+        'model_reasoning_effort="medium"',
+        "-c",
+        'model_providers.metadata_proxy.name="Metadata Proxy"',
+        "-c",
+        'model_providers.metadata_proxy.base_url="https://metadata-proxy.example"',
+        "-c",
+        'model_providers.metadata_proxy.wire_api="responses"',
+        "-c",
+        'model_providers.metadata_proxy.env_key="SYYMMETRA_CODEX_API_KEY"',
         "--output-schema",
         "/private/site/scripts/metadata-output.schema.json",
         "-C",
@@ -942,9 +970,32 @@ describe("Codex invocation and process runner", () => {
     expect(invocation.env).toMatchObject({
       PWD: "/private/site/.sync-tmp/enrichment-1",
       PRESERVED: "yes",
+      SYYMMETRA_CODEX_API_KEY: "test-provider-secret",
     });
     expect(invocation.env).not.toHaveProperty("AI_DAILY_SOURCE");
     expect(JSON.stringify(invocation)).not.toContain(sourcePath);
+    expect(invocation.args.join(" ")).not.toContain("test-provider-secret");
+  });
+
+  it("rejects incomplete or unsafe metadata provider configuration", () => {
+    const common = {
+      stagingDir: "/private/site/.sync-tmp/enrichment-1",
+      outputFile: "/private/site/.sync-tmp/enrichment-1/output.json",
+      schemaPath: "/private/site/scripts/metadata-output.schema.json",
+      prompt: "fixed prompt",
+    };
+
+    expect(() => buildCodexInvocation({ ...common, parentEnv: {} })).toThrow(
+      /metadata provider configuration/i,
+    );
+    expect(() => buildCodexInvocation({
+      ...common,
+      parentEnv: { ...PROVIDER_ENV, SYYMMETRA_CODEX_BASE_URL: "http://metadata-proxy.example" },
+    })).toThrow(/HTTPS/i);
+    expect(() => buildCodexInvocation({
+      ...common,
+      parentEnv: { ...PROVIDER_ENV, SYYMMETRA_CODEX_BASE_URL: "https://user:pass@metadata-proxy.example" },
+    })).toThrow(/credentials/i);
   });
 
   it("spawns without a shell and writes the prompt to stdin", async () => {
@@ -1377,7 +1428,7 @@ describe("enrichment orchestration", () => {
       runner: wrappedRunner,
       schemaPath,
       prompt,
-      parentEnv: options.parentEnv,
+      parentEnv: { ...PROVIDER_ENV, ...options.parentEnv },
       timeoutMs: 100,
     });
 
@@ -1414,6 +1465,7 @@ describe("enrichment orchestration", () => {
       outputRunner(JSON.stringify(validOutput())),
       {
         parentEnv: {
+          ...PROVIDER_ENV,
           AI_DAILY_SOURCE: sourcePath,
           PWD: sourcePath,
           SAFE_PARENT_VALUE: "kept",
@@ -1538,6 +1590,7 @@ describe("enrichment orchestration", () => {
           }),
         schemaPath,
         prompt: await fs.readFile(promptPath, "utf8"),
+        parentEnv: PROVIDER_ENV,
       }),
     ).rejects.toThrow(/process may still be alive|unreaped.*preserved/i);
     const preserved = await fs.readdir(stagingParent);
@@ -1687,6 +1740,7 @@ describe("enrichment orchestration", () => {
         },
         schemaPath,
         prompt: await fs.readFile(promptPath, "utf8"),
+        parentEnv: PROVIDER_ENV,
       }),
     ).rejects.toThrow(/staging directory.*identity changed/i);
     await expect(

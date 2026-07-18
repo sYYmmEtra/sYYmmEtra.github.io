@@ -28,6 +28,7 @@ const MAX_PROCESS_CAPTURE_BYTES = 64 * 1024;
 const PROCESS_CAPTURE_TRUNCATION_MARKER = "\n...[truncated]\n";
 const MAX_CLI_INPUT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 120_000;
+const PROVIDER_API_KEY_ENV = "SYYMMETRA_CODEX_API_KEY";
 
 export const StagedLessonInputSchema = z
   .object({
@@ -276,6 +277,37 @@ export function buildCodexInvocation(
   options: BuildCodexInvocationOptions,
 ): CodexInvocation {
   const parentEnvironment = options.parentEnv ?? process.env;
+  const baseUrlValue = parentEnvironment.SYYMMETRA_CODEX_BASE_URL?.trim();
+  const model = parentEnvironment.SYYMMETRA_CODEX_MODEL?.trim();
+  const reasoningEffort = parentEnvironment.SYYMMETRA_CODEX_REASONING_EFFORT?.trim();
+  const apiKey = parentEnvironment[PROVIDER_API_KEY_ENV];
+  if (!baseUrlValue || !model || !reasoningEffort || !apiKey) {
+    throw new Error(
+      "Metadata provider configuration requires SYYMMETRA_CODEX_BASE_URL, SYYMMETRA_CODEX_MODEL, SYYMMETRA_CODEX_REASONING_EFFORT, and SYYMMETRA_CODEX_API_KEY",
+    );
+  }
+  let providerUrl: URL;
+  try {
+    providerUrl = new URL(baseUrlValue);
+  } catch {
+    throw new Error("Metadata provider base URL must be a valid HTTPS URL");
+  }
+  if (providerUrl.protocol !== "https:") {
+    throw new Error("Metadata provider base URL must use HTTPS");
+  }
+  if (providerUrl.username || providerUrl.password) {
+    throw new Error("Metadata provider base URL must not contain credentials");
+  }
+  if (providerUrl.search || providerUrl.hash) {
+    throw new Error("Metadata provider base URL must not contain a query or fragment");
+  }
+  if (/[\u0000-\u001f\u007f]/.test(model)) {
+    throw new Error("Metadata provider model contains control characters");
+  }
+  if (!/^(?:low|medium|high|xhigh)$/.test(reasoningEffort)) {
+    throw new Error("Metadata provider reasoning effort must be low, medium, high, or xhigh");
+  }
+  const providerBaseUrl = providerUrl.href.replace(/\/$/, "");
   const sourcePolicy = createSourcePathPolicy(
     parentEnvironment.AI_DAILY_SOURCE,
   );
@@ -307,6 +339,20 @@ export function buildCodexInvocation(
       "read-only",
       "-c",
       "shell_environment_policy.inherit=none",
+      "-c",
+      'model_provider="metadata_proxy"',
+      "-c",
+      `model=${JSON.stringify(model)}`,
+      "-c",
+      `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`,
+      "-c",
+      'model_providers.metadata_proxy.name="Metadata Proxy"',
+      "-c",
+      `model_providers.metadata_proxy.base_url=${JSON.stringify(providerBaseUrl)}`,
+      "-c",
+      'model_providers.metadata_proxy.wire_api="responses"',
+      "-c",
+      `model_providers.metadata_proxy.env_key=${JSON.stringify(PROVIDER_API_KEY_ENV)}`,
       "--output-schema",
       options.schemaPath,
       "-C",
