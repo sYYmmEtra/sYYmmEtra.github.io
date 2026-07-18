@@ -29,6 +29,9 @@ const PROCESS_CAPTURE_TRUNCATION_MARKER = "\n...[truncated]\n";
 const MAX_CLI_INPUT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 120_000;
 const PROVIDER_API_KEY_ENV = "SYYMMETRA_CODEX_API_KEY";
+const PROVIDER_OUTPUT_MODES = ["plain-json", "structured"] as const;
+
+type ProviderOutputMode = (typeof PROVIDER_OUTPUT_MODES)[number];
 
 export const StagedLessonInputSchema = z
   .object({
@@ -280,12 +283,19 @@ export function buildCodexInvocation(
   const baseUrlValue = parentEnvironment.SYYMMETRA_CODEX_BASE_URL?.trim();
   const model = parentEnvironment.SYYMMETRA_CODEX_MODEL?.trim();
   const reasoningEffort = parentEnvironment.SYYMMETRA_CODEX_REASONING_EFFORT?.trim();
+  const outputModeValue = parentEnvironment.SYYMMETRA_CODEX_OUTPUT_MODE?.trim();
   const apiKey = parentEnvironment[PROVIDER_API_KEY_ENV];
-  if (!baseUrlValue || !model || !reasoningEffort || !apiKey) {
+  if (!baseUrlValue || !model || !reasoningEffort || !outputModeValue || !apiKey) {
     throw new Error(
-      "Metadata provider configuration requires SYYMMETRA_CODEX_BASE_URL, SYYMMETRA_CODEX_MODEL, SYYMMETRA_CODEX_REASONING_EFFORT, and SYYMMETRA_CODEX_API_KEY",
+      "Metadata provider configuration requires SYYMMETRA_CODEX_BASE_URL, SYYMMETRA_CODEX_MODEL, SYYMMETRA_CODEX_REASONING_EFFORT, SYYMMETRA_CODEX_OUTPUT_MODE, and SYYMMETRA_CODEX_API_KEY",
     );
   }
+  if (!PROVIDER_OUTPUT_MODES.includes(outputModeValue as ProviderOutputMode)) {
+    throw new Error(
+      "Metadata provider output mode must be plain-json or structured",
+    );
+  }
+  const outputMode = outputModeValue as ProviderOutputMode;
   let providerUrl: URL;
   try {
     providerUrl = new URL(baseUrlValue);
@@ -353,8 +363,9 @@ export function buildCodexInvocation(
       'model_providers.metadata_proxy.wire_api="responses"',
       "-c",
       `model_providers.metadata_proxy.env_key=${JSON.stringify(PROVIDER_API_KEY_ENV)}`,
-      "--output-schema",
-      options.schemaPath,
+      ...(outputMode === "structured"
+        ? ["--output-schema", options.schemaPath]
+        : []),
       "-C",
       options.stagingDir,
       "-o",

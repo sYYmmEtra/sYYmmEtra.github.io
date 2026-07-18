@@ -28,6 +28,7 @@ const PROVIDER_ENV = {
   SYYMMETRA_CODEX_BASE_URL: "https://metadata-proxy.example",
   SYYMMETRA_CODEX_MODEL: "gpt-5.6-sol",
   SYYMMETRA_CODEX_REASONING_EFFORT: "medium",
+  SYYMMETRA_CODEX_OUTPUT_MODE: "plain-json",
   SYYMMETRA_CODEX_API_KEY: "test-provider-secret",
 };
 const promptPath = path.resolve("scripts/metadata-prompt.md");
@@ -913,7 +914,7 @@ describe("source-path canonicalization policy", () => {
 });
 
 describe("Codex invocation and process runner", () => {
-  it("builds the exact hardened argv, stdin prompt, and sanitized environment", () => {
+  it("builds the exact hardened plain-JSON argv without structured output", () => {
     const sourcePath = "/private/source/ai-daily";
     const invocation = buildCodexInvocation({
       stagingDir: "/private/site/.sync-tmp/enrichment-1",
@@ -953,8 +954,6 @@ describe("Codex invocation and process runner", () => {
         'model_providers.metadata_proxy.wire_api="responses"',
         "-c",
         'model_providers.metadata_proxy.env_key="SYYMMETRA_CODEX_API_KEY"',
-        "--output-schema",
-        "/private/site/scripts/metadata-output.schema.json",
         "-C",
         "/private/site/.sync-tmp/enrichment-1",
         "-o",
@@ -975,6 +974,28 @@ describe("Codex invocation and process runner", () => {
     expect(invocation.env).not.toHaveProperty("AI_DAILY_SOURCE");
     expect(JSON.stringify(invocation)).not.toContain(sourcePath);
     expect(invocation.args.join(" ")).not.toContain("test-provider-secret");
+    expect(invocation.args).not.toContain("--output-schema");
+    expect(invocation.args).not.toContain(
+      "/private/site/scripts/metadata-output.schema.json",
+    );
+  });
+
+  it("keeps JSON Schema output available for compatible providers", () => {
+    const invocation = buildCodexInvocation({
+      stagingDir: "/private/site/.sync-tmp/enrichment-1",
+      outputFile: "/private/site/.sync-tmp/enrichment-1/output.json",
+      schemaPath: "/private/site/scripts/metadata-output.schema.json",
+      prompt: "fixed prompt",
+      parentEnv: {
+        ...PROVIDER_ENV,
+        SYYMMETRA_CODEX_OUTPUT_MODE: "structured",
+      },
+    });
+
+    expect(invocation.args).toContain("--output-schema");
+    expect(invocation.args).toContain(
+      "/private/site/scripts/metadata-output.schema.json",
+    );
   });
 
   it("rejects incomplete or unsafe metadata provider configuration", () => {
@@ -988,6 +1009,13 @@ describe("Codex invocation and process runner", () => {
     expect(() => buildCodexInvocation({ ...common, parentEnv: {} })).toThrow(
       /metadata provider configuration/i,
     );
+    expect(() => buildCodexInvocation({
+      ...common,
+      parentEnv: {
+        ...PROVIDER_ENV,
+        SYYMMETRA_CODEX_OUTPUT_MODE: "markdown",
+      },
+    })).toThrow(/output mode.*plain-json.*structured/i);
     expect(() => buildCodexInvocation({
       ...common,
       parentEnv: { ...PROVIDER_ENV, SYYMMETRA_CODEX_BASE_URL: "http://metadata-proxy.example" },
