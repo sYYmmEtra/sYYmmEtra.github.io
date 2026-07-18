@@ -5,13 +5,13 @@ import LatestLessons from "../components/LatestLessons.astro";
 import LearningPulse from "../components/LearningPulse.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { en } from "../data/i18n";
-import { site } from "../data/site";
+import { personJsonLd, site } from "../data/site";
 import "katex/dist/katex.min.css";
 
 const lessons = await getCollection("aiDaily");
 ---
 
-<BaseLayout title={`${site.name} — Personal Blog`}>
+<BaseLayout title={`${site.name} — Personal Blog`} alternates={{ en: "/", zhCN: "/zh/" }} structuredData={personJsonLd}>
   <div data-content-entries={lessons.length}>
     <Hero />
     <LearningPulse lessons={lessons} />

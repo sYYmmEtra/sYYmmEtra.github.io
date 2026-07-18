@@ -4,6 +4,6 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
 import { zhCN } from "../../../data/i18n";
 ---
 
-<BaseLayout locale="zh-CN" title={`${zhCN.about.title} — sYYmmEtra`}>
+<BaseLayout locale="zh-CN" title={`${zhCN.about.title} — sYYmmEtra`} alternates={{ en: "/about/", zhCN: "/zh/about/" }}>
   <ProfileCard locale="zh-CN" />
 </BaseLayout>

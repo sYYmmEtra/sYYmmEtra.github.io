@@ -10,7 +10,7 @@ import { site } from "../../data/site";
 const lessons = await getCollection("aiDaily");
 ---
 
-<BaseLayout locale="zh-CN" title={`${site.name} — ${zhCN.navigation.home}`}>
+<BaseLayout locale="zh-CN" title={`${site.name} — ${zhCN.navigation.home}`} alternates={{ en: "/", zhCN: "/zh/" }}>
   <div data-content-entries={lessons.length}>
     <Hero locale="zh-CN" />
     <LearningPulse locale="zh-CN" lessons={lessons} />

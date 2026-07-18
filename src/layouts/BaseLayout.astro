@@ -1,6 +1,7 @@
 ---
 import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
+import Seo from "../components/Seo.astro";
 import { en, type Locale } from "../data/i18n";
 import { site } from "../data/site";
 import "../styles/global.css";
@@ -10,18 +11,25 @@ interface Props {
   description?: string;
   locale?: Locale;
   languageHref?: string;
+  canonicalPath?: string;
+  alternates?: { en: string; zhCN: string };
+  structuredData?: Record<string, unknown> | Record<string, unknown>[];
+  seoType?: "website" | "article";
 }
 
 const {
   title = site.name,
   locale = "en",
   languageHref,
+  canonicalPath = Astro.url.pathname,
+  alternates,
+  structuredData,
+  seoType,
 } = Astro.props;
 const description = Astro.props.description ?? (
   locale === "zh-CN" ? site.descriptionZh : site.description
 );
 const language = locale === "zh-CN" ? "zh-CN" : "en";
-const canonicalUrl = new URL(Astro.url.pathname, site.siteUrl);
 const copy = locale === "zh-CN" ? (await import("../data/i18n")).zhCN : en;
 ---
 
@@ -30,10 +38,8 @@ const copy = locale === "zh-CN" ? (await import("../data/i18n")).zhCN : en;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content={description} />
     <meta name="color-scheme" content="light dark" />
-    <link rel="canonical" href={canonicalUrl} />
-    <title>{title}</title>
+    <Seo title={title} description={description} canonicalPath={canonicalPath} locale={locale} alternates={alternates} structuredData={structuredData} type={seoType} />
     <script is:inline>
       (() => {
         const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -56,7 +62,7 @@ const copy = locale === "zh-CN" ? (await import("../data/i18n")).zhCN : en;
   <body>
     <a class="skip-link" href="#main-content">{copy.navigation.skipToContent}</a>
     <SiteHeader locale={locale} languageHref={languageHref} />
-    <main class="site-main reading-shell" id="main-content">
+    <main class="site-main reading-shell" id="main-content" tabindex="-1">
       <slot />
     </main>
     <SiteFooter />

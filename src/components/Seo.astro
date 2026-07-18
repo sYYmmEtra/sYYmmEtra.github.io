@@ -1,0 +1,54 @@
+---
+import { site } from "../data/site";
+
+interface LocaleAlternates {
+  en: string;
+  zhCN: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  locale?: "en" | "zh-CN";
+  alternates?: LocaleAlternates;
+  structuredData?: Record<string, unknown> | Record<string, unknown>[];
+  type?: "website" | "article";
+}
+
+const {
+  title,
+  description,
+  canonicalPath,
+  locale = "en",
+  alternates,
+  structuredData,
+  type = "website",
+} = Astro.props;
+const canonicalUrl = new URL(canonicalPath, site.siteUrl).href;
+const jsonLd = structuredData
+  ? JSON.stringify(structuredData).replace(/</g, "\\u003c")
+  : undefined;
+---
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonicalUrl} />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="alternate" type="application/rss+xml" title={`${site.name} AI Daily RSS`} href="/rss.xml" />
+{alternates && <>
+  <link rel="alternate" hreflang="en" href={new URL(alternates.en, site.siteUrl).href} />
+  <link rel="alternate" hreflang="zh-CN" href={new URL(alternates.zhCN, site.siteUrl).href} />
+  <link rel="alternate" hreflang="x-default" href={new URL(alternates.en, site.siteUrl).href} />
+</>}
+<meta property="og:type" content={type} />
+<meta property="og:site_name" content={site.name} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonicalUrl} />
+<meta property="og:image" content={`${site.siteUrl}og-default.svg`} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={`${site.siteUrl}og-default.svg`} />
+{jsonLd && <script type="application/ld+json" set:html={jsonLd} />}

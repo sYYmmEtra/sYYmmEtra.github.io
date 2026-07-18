@@ -6,6 +6,7 @@ import LessonDisclosure from "../components/LessonDisclosure.astro";
 import LessonPager from "../components/LessonPager.astro";
 import BaseLayout from "./BaseLayout.astro";
 import { dictionaries } from "../data/i18n";
+import { personJsonLd, site } from "../data/site";
 
 interface Heading { depth: number; slug: string; text: string; }
 interface Props {
@@ -19,9 +20,22 @@ const { lesson, headings, previous, next, readingMinutes } = Astro.props;
 const copy = dictionaries.en;
 const display = resolveMetadataDisplay(lesson.data);
 const sourceStatus = copy.sourceStatus[lesson.data.sourceStatus];
+const canonicalPath = `/ai-daily/${lesson.data.slug}/`;
+const articleJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline: display.title,
+  description: display.summary,
+  author: personJsonLd,
+  datePublished: lesson.data.date,
+  keywords: ["AI Daily", `Track ${lesson.data.track}`, lesson.data.depth, ...display.tags],
+  inLanguage: "zh-CN",
+  url: new URL(canonicalPath, site.siteUrl).href,
+  mainEntityOfPage: new URL(canonicalPath, site.siteUrl).href,
+};
 ---
 
-<BaseLayout title={`${display.title} — AI Daily`} description={display.summary} languageHref="/zh/ai-daily/">
+<BaseLayout title={`${display.title} — AI Daily`} description={display.summary} canonicalPath={canonicalPath} languageHref="/zh/ai-daily/" structuredData={articleJsonLd} seoType="article">
   <article class="article-layout" lang="zh-CN" data-pagefind-body>
     <header class="article-layout__header">
       <p class="eyebrow">AI Daily · Lesson {lesson.data.lesson}</p>

@@ -197,6 +197,7 @@ button:focus-visible, a:focus-visible {
 .project-empty-state h1, .profile-card h1 { margin: 0.35rem 0 1rem; font-size: clamp(2.7rem, 6vw, 5.5rem); }
 .project-empty-state > p:not(.eyebrow), .profile-card > p:not(.eyebrow) { max-width: 39rem; color: var(--ink-secondary); font-size: 1.15rem; }
 .profile-card__role { color: var(--ink) !important; font-weight: 700; }
+.profile-card__avatar { width: 6rem; height: 6rem; margin-bottom: 1.5rem; border: 2px solid var(--border); border-radius: 50%; object-fit: cover; }
 
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .skip-link { position: fixed; z-index: 20; top: 0.5rem; left: 0.5rem; transform: translateY(-150%); padding: 0.7rem 1rem; background: var(--ink); color: var(--canvas); }

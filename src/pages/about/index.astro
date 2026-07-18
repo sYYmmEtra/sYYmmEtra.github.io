@@ -4,6 +4,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import { en } from "../../data/i18n";
 ---
 
-<BaseLayout title={`${en.about.title} — sYYmmEtra`}>
+<BaseLayout title={`${en.about.title} — sYYmmEtra`} alternates={{ en: "/about/", zhCN: "/zh/about/" }}>
   <ProfileCard />
 </BaseLayout>

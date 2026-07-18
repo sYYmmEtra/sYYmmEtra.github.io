@@ -11,7 +11,7 @@ const lessons = (await getCollection("aiDaily")).sort((left, right) =>
 );
 ---
 
-<BaseLayout locale="zh-CN" title={`${zhCN.archive.title} — sYYmmEtra`} description={zhCN.archive.description}>
+<BaseLayout locale="zh-CN" title={`${zhCN.archive.title} — sYYmmEtra`} description={zhCN.archive.description} alternates={{ en: "/ai-daily/", zhCN: "/zh/ai-daily/" }}>
   <section class="lesson-archive" aria-labelledby="archive-title">
     <header class="lesson-archive__header"><p class="eyebrow">sYYmmEtra</p><h1 class="display-heading" id="archive-title">{zhCN.archive.title}</h1><p>{zhCN.archive.description}</p></header>
     <LessonSearch locale="zh-CN" />
