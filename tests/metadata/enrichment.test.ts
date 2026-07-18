@@ -300,7 +300,7 @@ describe("checked-in output schema", () => {
 
   it("keeps the approved fixed read-only prompt", async () => {
     await expect(fs.readFile(promptPath, "utf8")).resolves.toBe(
-      "Read `lesson.json` in the current directory. Return only the JSON object required by the supplied schema. Echo `id` and `sourceHash` exactly. Translate the Chinese title faithfully into concise technical English. Write a 30–60 word English summary based only on the supplied title, summary, TL;DR, and body. Do not invent claims, verification status, dates, numbers, sources, or links. Produce 1–5 lowercase kebab-case technical tags. Do not edit files.\n",
+      "Read `lesson.json` in the current directory. Return only one JSON object with exactly these keys: `id`, `sourceHash`, `titleEn`, `summaryEn`, and `tags`. Do not use `title` or `summary`. Echo `id` and `sourceHash` exactly. Translate the Chinese title faithfully into concise technical English for `titleEn`. Write a 30–60 word English summary for `summaryEn` based only on the supplied title, summary, TL;DR, and body. Do not invent claims, verification status, dates, numbers, sources, or links. Produce 1–5 lowercase kebab-case technical tags for `tags`. Do not use Markdown fences or commentary. Do not edit files.\n",
     );
   });
 });
