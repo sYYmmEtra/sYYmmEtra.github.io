@@ -21,6 +21,7 @@ test("Pagefind results remain below the search control with readable dark-theme 
   const form = page.locator(".pagefind-ui__form");
   const drawer = page.locator(".pagefind-ui__drawer");
   await expect(drawer).toBeVisible();
+  await expect(page.locator(".pagefind-ui__result-link").first()).toBeVisible();
   const geometry = await page.evaluate(() => {
     const input = document.querySelector(".pagefind-ui__search-input")!.getBoundingClientRect();
     const drawer = document.querySelector(".pagefind-ui__drawer")!.getBoundingClientRect();
