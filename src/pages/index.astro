@@ -1,16 +1,32 @@
 ---
 import { getCollection } from "astro:content";
+import Hero from "../components/Hero.astro";
+import LatestLessons from "../components/LatestLessons.astro";
+import LearningPulse from "../components/LearningPulse.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import { en } from "../data/i18n";
 import { site } from "../data/site";
 import "katex/dist/katex.min.css";
 
-// This only verifies the collection's build-time contract. Task 7 owns Home
-// page content and sections.
 const lessons = await getCollection("aiDaily");
 ---
 
 <BaseLayout title={`${site.name} — Personal Blog`}>
-  <section class="site-foundation" data-content-entries={lessons.length}>
-    <span class="visually-hidden">Site foundation</span>
-  </section>
+  <div data-content-entries={lessons.length}>
+    <Hero />
+    <LearningPulse lessons={lessons} />
+    <LatestLessons lessons={lessons} />
+    <section class="home-previews" aria-label="More about sYYmmEtra">
+      <div>
+        <p class="eyebrow">{en.home.projectPreview}</p>
+        <p>{en.home.projectPreviewDescription}</p>
+        <a href="/projects/">{en.home.viewProjects}</a>
+      </div>
+      <div>
+        <p class="eyebrow">{en.home.aboutPreview}</p>
+        <p>{en.home.aboutPreviewDescription}</p>
+        <a href="/about/">{en.home.learnMore}</a>
+      </div>
+    </section>
+  </div>
 </BaseLayout>

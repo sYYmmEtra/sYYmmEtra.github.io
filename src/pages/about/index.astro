@@ -1,0 +1,9 @@
+---
+import ProfileCard from "../../components/ProfileCard.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { en } from "../../data/i18n";
+---
+
+<BaseLayout title={`${en.about.title} — sYYmmEtra`}>
+  <ProfileCard />
+</BaseLayout>

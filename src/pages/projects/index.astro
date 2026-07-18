@@ -1,0 +1,9 @@
+---
+import ProjectEmptyState from "../../components/ProjectEmptyState.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { en } from "../../data/i18n";
+---
+
+<BaseLayout title={`${en.projects.title} — sYYmmEtra`}>
+  <ProjectEmptyState />
+</BaseLayout>

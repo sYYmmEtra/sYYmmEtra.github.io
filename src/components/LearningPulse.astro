@@ -1,0 +1,34 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { dictionaries, type Locale } from "../data/i18n";
+
+interface Props {
+  locale?: Locale;
+  lessons: CollectionEntry<"aiDaily">[];
+}
+const { locale = "en", lessons } = Astro.props;
+const copy = dictionaries[locale];
+const tracks = (["A", "B", "C"] as const).map((track) => {
+  const entries = lessons.filter((lesson) => lesson.data.track === track);
+  const depths = [...new Set(entries.map((lesson) => lesson.data.depth))].sort();
+  return { track, count: entries.length, depths: depths.join(" · ") };
+});
+---
+
+<section class="learning-pulse" aria-labelledby="learning-pulse-title">
+  <div class="section-heading">
+    <p class="eyebrow">{copy.home.learningPulse}</p>
+    <h2 id="learning-pulse-title">{copy.home.learningPulseDescription}</h2>
+    <p>{copy.home.currentCorpus}: {lessons.length} {copy.home.lessonCount}</p>
+  </div>
+  <ol class="learning-pulse__rails">
+    {tracks.map(({ track, count, depths }) => (
+      <li class={`learning-rail thread-${track.toLowerCase()}`}>
+        <span class="learning-rail__label">{copy.home.trackLabel} {track}</span>
+        <span class="learning-rail__line" aria-hidden="true"></span>
+        <strong>{count}</strong>
+        <span class="learning-rail__depths">{depths}</span>
+      </li>
+    ))}
+  </ol>
+</section>

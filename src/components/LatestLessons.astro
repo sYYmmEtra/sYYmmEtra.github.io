@@ -1,0 +1,53 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { resolveMetadataDisplay } from "../../scripts/lib/metadata";
+import { dictionaries, type Locale } from "../data/i18n";
+
+interface Props {
+  locale?: Locale;
+  lessons: CollectionEntry<"aiDaily">[];
+}
+const { locale = "en", lessons } = Astro.props;
+const copy = dictionaries[locale];
+const latest = [...lessons]
+  .sort((left, right) =>
+    right.data.date.localeCompare(left.data.date) || right.data.lesson - left.data.lesson,
+  )
+  .slice(0, 3)
+  .map((lesson) => {
+    const display = locale === "en"
+      ? resolveMetadataDisplay(lesson.data)
+      : { title: lesson.data.titleZh, summary: lesson.data.summaryZh, originalInChinese: true };
+    return { lesson, display };
+  });
+---
+
+<section class="latest-lessons" id="latest-lessons" aria-labelledby="latest-lessons-title">
+  <div class="section-heading">
+    <p class="eyebrow">AI Daily</p>
+    <h2 id="latest-lessons-title">{copy.home.latestLessons}</h2>
+    <p>{copy.home.latestLessonsDescription}</p>
+  </div>
+  {
+    latest.length === 0 ? (
+      <p class="latest-lessons__empty">{copy.home.emptyLatestLessons}</p>
+    ) : (
+      <div class="lesson-list">
+        {latest.map(({ lesson, display }, index) => (
+          <article class:list={["lesson-entry", { "lesson-entry--featured": index === 0 }]}>
+            <div class="lesson-entry__meta">
+              <span class={`thread-marker thread-${lesson.data.track.toLowerCase()}`}>{copy.home.trackLabel} {lesson.data.track}</span>
+              <span>{lesson.data.depth}</span>
+              <time datetime={lesson.data.date}>{lesson.data.date}</time>
+            </div>
+            <div>
+              <h3>{display.title}</h3>
+              {index === 0 && <p>{display.summary}</p>}
+              {display.originalInChinese && <small>{copy.home.originalChinese}</small>}
+            </div>
+          </article>
+        ))}
+      </div>
+    )
+  }
+</section>

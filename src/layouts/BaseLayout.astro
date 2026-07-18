@@ -13,9 +13,11 @@ interface Props {
 
 const {
   title = site.name,
-  description = site.description,
   locale = "en",
 } = Astro.props;
+const description = Astro.props.description ?? (
+  locale === "zh-CN" ? site.descriptionZh : site.description
+);
 const language = locale === "zh-CN" ? "zh-CN" : "en";
 const canonicalUrl = new URL(Astro.url.pathname, site.siteUrl);
 const copy = locale === "zh-CN" ? (await import("../data/i18n")).zhCN : en;

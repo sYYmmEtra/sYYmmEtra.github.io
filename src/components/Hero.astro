@@ -1,0 +1,25 @@
+---
+import { dictionaries, type Locale } from "../data/i18n";
+import { site } from "../data/site";
+
+interface Props { locale?: Locale; }
+const { locale = "en" } = Astro.props;
+const copy = dictionaries[locale];
+---
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero__content">
+    <p class="eyebrow">{copy.hero.eyebrow}</p>
+    <h1 class="display-heading" id="hero-title">{copy.hero.title}</h1>
+    <p class="hero__description">{copy.hero.description}</p>
+    <div class="action-row">
+      <a class="action action--primary" href="#latest-lessons">{copy.hero.archiveAction}</a>
+      <a class="action" href={`mailto:${site.email}`}>{copy.hero.aboutAction}</a>
+    </div>
+  </div>
+  <aside class="hero__context" aria-label={site.name}>
+    <p class="hero__context-label">{site.name}</p>
+    <p>{copy.about.role}</p>
+    <a class="hero__context-link" href={site.githubUrl}>GitHub <span aria-hidden="true">↗</span></a>
+  </aside>
+</section>

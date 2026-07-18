@@ -1,0 +1,9 @@
+---
+import ProfileCard from "../../../components/ProfileCard.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { zhCN } from "../../../data/i18n";
+---
+
+<BaseLayout locale="zh-CN" title={`${zhCN.about.title} — sYYmmEtra`}>
+  <ProfileCard locale="zh-CN" />
+</BaseLayout>

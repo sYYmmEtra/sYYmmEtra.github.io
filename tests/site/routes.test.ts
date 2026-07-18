@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { currentTrackCounts } from "./content-fixture";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -54,6 +55,9 @@ describe("Astro site foundation", () => {
     expect(styles).toMatch(
       /\.site-footer a\s*\{(?=[^}]*min-height:\s*2\.75rem;)(?=[^}]*display:\s*inline-flex;)[^}]*\}/s,
     );
+    expect(styles).toMatch(
+      /\.hero__context-link\s*\{(?=[^}]*min-height:\s*2\.75rem;)(?=[^}]*display:\s*inline-flex;)(?=[^}]*align-items:\s*center;)(?=[^}]*padding:)[^}]*\}/s,
+    );
   });
 
   it("keeps a system-aware three-state theme control in sync with OS changes", () => {
@@ -83,6 +87,7 @@ describe("Astro site foundation", () => {
     expect(existsSync(path.join(repoRoot, "src/content.config.ts"))).toBe(true);
 
     const { en, zhCN } = await import("../../src/data/i18n");
+    const { site } = await import("../../src/data/site");
     expect(dictionaryKeys(en).sort()).toEqual(dictionaryKeys(zhCN).sort());
 
     const sentinel = path.join(
@@ -109,16 +114,54 @@ describe("Astro site foundation", () => {
         path.join(outputDirectory, "index.html"),
         "utf8",
       );
-      expect(home).toContain('data-content-entries="13"');
+      const projects = readFileSync(
+        path.join(outputDirectory, "projects", "index.html"),
+        "utf8",
+      );
+      const about = readFileSync(
+        path.join(outputDirectory, "about", "index.html"),
+        "utf8",
+      );
+      const zhHome = readFileSync(
+        path.join(outputDirectory, "zh", "index.html"),
+        "utf8",
+      );
+      const zhProjects = readFileSync(
+        path.join(outputDirectory, "zh", "projects", "index.html"),
+        "utf8",
+      );
+      const zhAbout = readFileSync(
+        path.join(outputDirectory, "zh", "about", "index.html"),
+        "utf8",
+      );
+      const expectedCount = Object.values(currentTrackCounts(repoRoot)).reduce(
+        (total, count) => total + count,
+        0,
+      );
+      expect(home).toContain(`data-content-entries="${expectedCount}"`);
       expect(home).toContain('href="#main-content"');
       expect(home).toMatch(/<html lang="en"[^>]*data-theme=/);
+      expect(home).toContain(`<meta name="description" content="${site.description}">`);
+      expect(zhHome).toContain(`<meta name="description" content="${site.descriptionZh}">`);
       expect(home).not.toContain('href="/ai-daily/"');
-      expect(home).not.toContain('href="/projects/"');
-      expect(home).not.toContain('href="/about/"');
+      expect(home).toContain('href="/projects/"');
+      expect(home).toContain('href="/about/"');
       expect(home).toContain("data-system-label");
+      expect(home).toContain('<a href="/" aria-current="page">Home</a>');
+      expect(projects).toContain('<a href="/projects/" aria-current="page">Projects</a>');
+      expect(about).toContain('<a href="/about/" aria-current="page">About</a>');
+      expect(zhHome).toContain('<a href="/zh/" aria-current="page">首页</a>');
+      expect(zhProjects).toContain('<a href="/zh/projects/" aria-current="page">项目</a>');
+      expect(zhAbout).toContain('<a href="/zh/about/" aria-current="page">关于</a>');
+      for (const page of [home, projects, about, zhHome, zhProjects, zhAbout]) {
+        expect(page.match(/aria-current="page"/g)).toHaveLength(1);
+      }
+      expect(home).toContain('<a class="site-nav__language" href="/zh/" lang="zh-CN">中文</a>');
+      expect(zhProjects).toContain('<a class="site-nav__language" href="/projects/" lang="en">English</a>');
+      expect(home).toContain('class="hero__context-link"');
       expect(readFileSync(sentinel, "utf8")).toBe("do not remove\n");
-      expect(existsSync(path.join(outputDirectory, "projects", "index.html"))).toBe(false);
-      expect(existsSync(path.join(outputDirectory, "about", "index.html"))).toBe(false);
+      expect(existsSync(path.join(outputDirectory, "projects", "index.html"))).toBe(true);
+      expect(existsSync(path.join(outputDirectory, "about", "index.html"))).toBe(true);
       expect(existsSync(path.join(outputDirectory, "ai-daily", "index.html"))).toBe(false);
     } finally {
       rmSync(sentinel, { force: true });

@@ -12,20 +12,37 @@ const copy = locale === "zh-CN" ? (await import("../data/i18n")).zhCN : en;
 const localizedHref = (href: string) =>
   locale === "zh-CN" ? (href === "/" ? "/zh/" : `/zh${href}`) : href;
 const visibleNavigation = navigation.filter((item) => item.available);
+const currentPath = Astro.url.pathname;
+const normalizePath = (pathname: string) => {
+  const withoutIndex = pathname.replace(/\/index(?:\.html)?\/?$/, "/");
+  return withoutIndex === "/" ? "/" : withoutIndex.replace(/\/+$/, "");
+};
+const normalizedCurrentPath = normalizePath(currentPath);
+const languageHref = locale === "zh-CN"
+  ? (currentPath.replace(/^\/zh(?=\/|$)/, "") || "/")
+  : `/zh${currentPath === "/" ? "/" : currentPath}`;
 ---
 
 <header class="site-header">
-  <nav class="site-nav" aria-label="Primary navigation">
-    <a class="site-nav__brand" href="/" aria-label={`${site.name} home`}>
+  <nav class="site-nav" aria-label={copy.navigation.primaryNavigation}>
+    <a class="site-nav__brand" href={localizedHref("/")} aria-label={copy.navigation.brandHome}>
       <span class="site-nav__mark" aria-hidden="true"></span>
       <span>{site.name}</span>
     </a>
     <div class="site-nav__links">
       {
-        visibleNavigation.map((item) => (
-          <a href={localizedHref(item.href)}>{copy.navigation[item.key]}</a>
-        ))
+        visibleNavigation.map((item) => {
+          const href = localizedHref(item.href);
+          return (
+            <a href={href} aria-current={normalizePath(href) === normalizedCurrentPath ? "page" : undefined}>
+              {copy.navigation[item.key]}
+            </a>
+          );
+        })
       }
+      <a class="site-nav__language" href={languageHref} lang={locale === "en" ? "zh-CN" : "en"}>
+        {copy.navigation.switchLanguage}
+      </a>
     </div>
     <ThemeToggle locale={locale} />
   </nav>

@@ -1,0 +1,9 @@
+---
+import ProjectEmptyState from "../../../components/ProjectEmptyState.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { zhCN } from "../../../data/i18n";
+---
+
+<BaseLayout locale="zh-CN" title={`${zhCN.projects.title} — sYYmmEtra`}>
+  <ProjectEmptyState locale="zh-CN" />
+</BaseLayout>

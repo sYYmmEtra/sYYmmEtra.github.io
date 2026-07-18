@@ -1,0 +1,31 @@
+---
+import { getCollection } from "astro:content";
+import Hero from "../../components/Hero.astro";
+import LatestLessons from "../../components/LatestLessons.astro";
+import LearningPulse from "../../components/LearningPulse.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { zhCN } from "../../data/i18n";
+import { site } from "../../data/site";
+
+const lessons = await getCollection("aiDaily");
+---
+
+<BaseLayout locale="zh-CN" title={`${site.name} — ${zhCN.navigation.home}`}>
+  <div data-content-entries={lessons.length}>
+    <Hero locale="zh-CN" />
+    <LearningPulse locale="zh-CN" lessons={lessons} />
+    <LatestLessons locale="zh-CN" lessons={lessons} />
+    <section class="home-previews" aria-label="更多 sYYmmEtra 信息">
+      <div>
+        <p class="eyebrow">{zhCN.home.projectPreview}</p>
+        <p>{zhCN.home.projectPreviewDescription}</p>
+        <a href="/zh/projects/">{zhCN.home.viewProjects}</a>
+      </div>
+      <div>
+        <p class="eyebrow">{zhCN.home.aboutPreview}</p>
+        <p>{zhCN.home.aboutPreviewDescription}</p>
+        <a href="/zh/about/">{zhCN.home.learnMore}</a>
+      </div>
+    </section>
+  </div>
+</BaseLayout>

@@ -1,0 +1,15 @@
+---
+import { dictionaries, type Locale } from "../data/i18n";
+import { site } from "../data/site";
+
+interface Props { locale?: Locale; }
+const { locale = "en" } = Astro.props;
+const copy = dictionaries[locale];
+---
+
+<section class="project-empty-state" aria-labelledby="projects-title">
+  <p class="eyebrow">{copy.projects.title}</p>
+  <h1 class="display-heading" id="projects-title">{copy.projects.emptyTitle}</h1>
+  <p>{copy.projects.emptyDescription}</p>
+  <a class="action" href={site.githubUrl}>{copy.projects.githubAction} <span aria-hidden="true">↗</span></a>
+</section>
