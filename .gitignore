@@ -6,3 +6,4 @@ dist/
 .sync-tmp/
 playwright-report/
 test-results/
+*.command
