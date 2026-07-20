@@ -17,3 +17,19 @@ export function currentTrackCounts(repoRoot: string): Record<"A" | "B" | "C", nu
 
   return counts;
 }
+
+export function latestLessonSlugs(repoRoot: string, limit = 3): string[] {
+  const contentDirectory = path.join(repoRoot, "src/content/ai-daily");
+  const dateValue = (value: unknown) => value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : String(value);
+
+  return readdirSync(contentDirectory)
+    .filter((filename) => filename.endsWith(".md"))
+    .map((filename) => matter(readFileSync(path.join(contentDirectory, filename), "utf8")).data)
+    .sort((left, right) =>
+      dateValue(right.date).localeCompare(dateValue(left.date)) || Number(right.lesson) - Number(left.lesson),
+    )
+    .slice(0, limit)
+    .map((lesson) => String(lesson.slug));
+}

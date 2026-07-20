@@ -3,7 +3,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { currentTrackCounts } from "./content-fixture";
+import { currentTrackCounts, latestLessonSlugs } from "./content-fixture";
 import { buildSite, repoRoot } from "./site-build";
 
 describe("Clear Workbench personal pages", () => {
@@ -22,7 +22,9 @@ describe("Clear Workbench personal pages", () => {
       expect(home).toContain('href="https://github.com/sYYmmEtra"');
       expect(home).toContain('href="/projects/"');
       expect(home).toContain('href="/about/"');
-      expect(home).toContain('href="/ai-daily/constrained-decoding-format-tax-tool-routing/"');
+      for (const slug of latestLessonSlugs(repoRoot)) {
+        expect(home).toContain(`href="/ai-daily/${slug}/"`);
+      }
       expect(home).not.toContain("mailto:");
       expect(home).not.toContain("@gmail.com");
       expect(home).not.toContain('"email":');
