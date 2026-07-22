@@ -10,7 +10,7 @@ track: B
 depth: L2
 titleZh: 嵌入与表示学习：对比学习（Contrastive Learning）
 titleEn: "Embeddings and Representation Learning: Contrastive Learning"
-summaryZh: 回填day7/day10留的钩子(bi-encoder为何work)。Embedding=把离散词/句映射到R^d、让几何距离≈语义相似度的地图;表示学习=让网络自学坐标(替代TF-IDF人工特征)。核心难题:语义相似度无标签→监督信号从哪来?对比学习答:相似度是相对的,只需"A比C更像B"的排序信号,而正对可几乎免费自造(同句两次dropout=SimCSE/翻译对/query↔doc),负样本随便抓。主损失InfoNCE=(N+1)选1的softmax分类:分子正对相似度、分母正+所有负,最小化loss=抬正对压负对(推拉一式搞定);sim=cosine(归一化点积,呼应day7),τ温度(0.05-0.07,小则尖锐重罚hard neg,必调超参)。两工程关键:①in-batch negatives(批内其它正样本天然做负样本→batch越大负样本越多→embedding偏爱超大batch的根因,负样本数直接进分母)②hard negatives(看着像其实不相关,逼精细决策边界,几个好的胜几千随机,但易误伤false negative毒化训练)。双塔=用InfoNCE训出来的,故语义近则向量近;其"无交互"缺陷正是day10需cross-encoder rerank的原因(day7→10→11合龙)。现代做法:拿decoder LLM(Mistral/Qwen)对比微调成embedding(E5-Mistral系),mean/last-token池化取句向量+instruction-aware(同文按任务编不同向量)。误区:堆负样本数量≠有效、语义相似度不是绝对分而是相对排序 [近期动态已联网核实:cropping增强胜dropout 2508.03453/MoE embedding 2502.07972/GRACE对比×RL 2510.04506]
+summaryZh: 回填day7/10钩子(bi-encoder为何work)。Embedding=离散词句→R^d、几何距离≈语义相似度;核心难题=语义相似度无标签,监督信号从哪来?对比学习答:相似度是相对的,只需"A比C更像B"排序信号,正对可免费自造(dropout=SimCSE/翻译对/query↔doc)。主损失InfoNCE=(N+1)选1的softmax=抬正对压负对;sim=cosine,τ温度小则重罚hard neg。两工程点:①in-batch negatives(batch越大负样本越多→偏爱超大batch根因)②hard negatives(几个好的胜几千随机,易误伤false negative)。双塔无交互缺陷正是day10需rerank的原因(day7→10→11合龙);现代=decoder LLM对比微调成embedding(E5-Mistral)
 summaryEn: Contrastive learning builds embedding spaces from relative similarity signals instead of hand-designed features. This lesson explains InfoNCE, cosine similarity, temperature, in-batch and hard negatives, false-negative risk, pooling, and instruction-aware encoders, connecting efficient dual-tower retrieval to the interaction limitations that motivate later cross-encoder reranking.
 slug: embeddings-contrastive-learning
 tags:

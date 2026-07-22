@@ -10,7 +10,7 @@ track: C
 depth: L3
 titleZh: 验证器 / 奖励模型工程（PRM · RLVR · reward hacking）
 titleEn: "Verifier and Reward Model Engineering: PRM, RLVR, and Reward Hacking"
-summaryZh: 复访升级day3测试时计算L2→L3(验证器侧)。验证器两条路:学出来的(ORM看答案/PRM看每步)vs算出来的(RLVR规则化)。PRM数据三代=人工(PRM800K贵)→MC自动标注(Math-Shepherd,一步价值≈从它出发的成功率)→LLM-judge;核心灾难=reward hacking:PRM沦为"流畅度探测器"非"推理验证器"(RL刷reward>0.9但正确率<4%,43%增益来自风格套路),第一性原理是Goodhart(有洞的学出来函数×不知疲倦的优化器);2025-26转向RLVR(数学答案匹配/代码单测/Lean校验,二值无参数故天然抗hack,是o1/R1/Kimi基石),代价=只在可验证域有效、奖励稀疏、会漂、且主要激活已有能力非注入新知;命脉=generation-verification gap(验证比生成容易),gap消失范式即失效
+summaryZh: 复访day3 L2→L3(验证器侧)。验证器两条路=学出来的(ORM看答案/PRM看每步)vs算出来的(RLVR规则化)。PRM数据三代=人工(贵)→MC自动标注(Math-Shepherd)→LLM-judge;核心灾难=reward hacking:PRM沦为流畅度探测器(RL刷reward>0.9但正确率<4%),第一性原理=Goodhart(有洞学出来函数×不知疲倦优化器);2025-26转RLVR(数学匹配/代码单测/Lean,二值无参数天然抗hack,o1/R1基石),代价=只在可验证域、奖励稀疏、主要激活已有能力非注入新知;命脉=generation-verification gap,gap消失范式即失效
 summaryEn: Verifier engineering can score final answers, individual reasoning steps, or rule-checkable outcomes. This lesson examines process reward data, automated labeling, Goodhart-driven reward hacking, and the shift toward rule-based verifiable rewards, while stressing sparse-reward limitations, domain constraints, and the generation-verification gap that makes the paradigm useful.
 slug: verifier-reward-model-engineering
 tags:

@@ -160,6 +160,26 @@
       },
       "sourceHash": "sha256:dd205a259a1367433a15ccca8fa9fbb5fd1b1302f1376049fd98ff8f26a97191",
       "slug": "lesson-0016"
+    },
+    {
+      "id": "lesson-0017",
+      "lesson": 17,
+      "source": {
+        "file": "lessons/2026-07-21.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:70d19f70b76200ad760c2c643c497a765b61f3617e29b404df51b6e1d491c66a",
+      "slug": "lesson-0017"
+    },
+    {
+      "id": "lesson-0018",
+      "lesson": 18,
+      "source": {
+        "file": "lessons/2026-07-22.md",
+        "section": 1
+      },
+      "sourceHash": "sha256:89564ae3d5c5d0a036669776c63309fbc0e169d1c73523d52f455cdf95183038",
+      "slug": "lesson-0018"
     }
   ]
 }

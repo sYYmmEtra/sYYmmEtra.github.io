@@ -9,7 +9,7 @@ track: C
 depth: L2
 titleZh: 测试时计算与推理模型（Test-Time Compute & Reasoning Models）
 titleEn: Test-Time Compute and Reasoning Models
-summaryZh: 额外算力砸在推理而非参数；两家族=序贯(长CoT/RL,用token换深度) 与 并行(采N条+验证器选优)；coverage 随N对数线性增长但坏验证器致收益反转；compute-optimal 按题目难度自适应分配，本质是对固定模型的后处理、逼不出未知知识
+summaryZh: 额外算力砸在推理而非参数；两家族=序贯(长CoT/RL,用token换深度)与并行(采N条+验证器选优);coverage随N对数线性涨但坏验证器致收益反转;compute-optimal按难度自适应分配;本质=对固定模型后处理,逼不出未知知识
 summaryEn: Test-time compute spends additional inference resources without changing model parameters. The lesson contrasts sequential long reasoning with parallel sampling and verification, explains why weak verifiers can reverse scaling gains, and motivates difficulty-aware allocation while emphasizing that extra inference cannot create knowledge absent from the model.
 slug: test-time-compute-reasoning-models
 tags:

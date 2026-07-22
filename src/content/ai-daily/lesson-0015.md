@@ -10,7 +10,7 @@ track: C
 depth: L2
 titleZh: FlashAttention（IO-aware 精确注意力：tiling + online softmax + 重计算）
 titleEn: "FlashAttention: IO-Aware Exact Attention with Tiling, Online Softmax, and Recomputation"
-summaryZh: 新主题(闭合day2/day8/day12钩子)。第一性原理:attention慢在搬运不在算力——标准实现把N×N分数矩阵在HBM来回读写、且softmax是低算术强度elementwise→memory-bound;是day8"decode带宽受限"的训练/prefill侧孪生(算力过剩、带宽稀缺)。三件套:①tiling把Q/K/V切块塞进快而小的SRAM、永不物化N×N,只写回O(N)的O;②online softmax(维护running max m/sum ℓ,新块来了用α=e^{m_old−m_new}回溯修正,数学上逐位等价于一次性softmax→exact非近似)解决"softmax需整行"与"分块流式"的矛盾;③backward用O/m/ℓ重计算S/P(用过剩算力换稀缺带宽/显存)。收账:HBM读写O(N²)→近线性、额外显存O(N²)→O(N)、FLOPs不变(计算复杂度仍O(N²))、加速2-4×。三误区:非降计算复杂度(那是Mamba/线性注意力且近似)、非稀疏丢token、省的不是FLOPs而是IO。谱系FA1(三件套)→FA2(并行划分)→FA3(Hopper异步/FP8)→FA4(2026-03 Blackwell:TensorCore翻倍而exp单元没提速→softmax成头号瓶颈,多项式逼近exp+条件式rescaling砍10×rescale)
+summaryZh: 新主题(闭合day2/8/12钩子)。第一性原理:attention慢在搬运不在算力——标准实现把N×N分数矩阵在HBM来回读写+softmax低算术强度→memory-bound(day8 decode带宽受限的训练/prefill孪生)。三件套:①tiling把Q/K/V切块塞进SRAM,永不物化N×N,只写回O(N);②online softmax(running max/sum,新块用α=e^{m_old−m_new}回溯修正,逐位等价→exact非近似);③backward重计算S/P(算力换带宽/显存)。收账=HBM读写O(N²)→近线性、额外显存→O(N)、FLOPs不变、加速2-4×。反直觉=非降计算复杂度、非稀疏丢token,省的是IO不是FLOPs。谱系FA1→2→3(Hopper)→4(2026 Blackwell,softmax成瓶颈)
 summaryEn: FlashAttention accelerates exact attention by tiling Q, K, and V in fast on-chip memory, applying online softmax without materializing the full attention matrix, and recomputing intermediates during backpropagation. It reduces memory traffic and storage while retaining quadratic computational complexity and equivalent attention results.
 slug: lesson-0015
 tags:

@@ -1,0 +1,25 @@
+id: lesson-0018
+source:
+  file: lessons/2026-07-22.md
+  section: 1
+  hash: sha256:89564ae3d5c5d0a036669776c63309fbc0e169d1c73523d52f455cdf95183038
+lesson: 18
+date: 2026-07-22
+track: C
+depth: L2
+titleZh: 分布式并行训练策略（DP / TP / PP / ZeRO·FSDP）
+titleEn: "Distributed Parallel Training Strategies: DP, TP, PP, ZeRO, and FSDP"
+summaryZh: 新主题(闭合day8/12/15三钩子)。单卡两大瓶颈=装不下+算不快,沿三正交轴切:DP切batch(每卡全副本→不省显存,只买吞吐,每步all-reduce梯度可重叠)、TP切层内权重矩阵(Megatron:A列切GeLU免通信+B行切→前向后向各1次all-reduce激活,卡在关键路径故必锁NVLink内、度≤8)、PP切层为stage(点对点传激活最便宜、跨节点用,代价=气泡(p-1)/(m+p-1)→micro-batch/1F1B/Zero-Bubble拆∂x∂w填气泡填)。锚点=Adam混合精度显存账16P/参数(fp16参2+梯2+fp32 master4+m4+v4=12→7B=112GB单卡爆)。ZeRO/FSDP=给DP打补丁分片冗余状态:ZeRO-1优化器态/2+梯度/3+参数(=FSDP,16P/N,7B/8卡=14GB✓,代价all-gather通信×1.5)。合龙第一性原理=把通信强度匹配带宽层级:TP最重进NVLink/PP最轻扛跨节点IB,与day8/15同一带宽金字塔世界观。3D(TP8×PP8×DP16=175B/1024卡52%峰值)→5D加EP(day12第4刀)+CP。反直觉=DP不省显存(缩模型是ZeRO)、ZeRO-3与TP都切参数但ZeRO-3先all-gather回完整层再算(通信=参数)而TP算时保持分片(通信=激活)
+summaryEn: This lesson explains how data, tensor, and pipeline parallelism divide batches, intra-layer matrices, and model layers, while ZeRO and FSDP shard redundant training state. It compares their memory and communication tradeoffs and shows how hybrid parallelism maps communication intensity to high-bandwidth intra-node and lower-bandwidth inter-node links.
+slug: lesson-0018
+tags:
+  - distributed-training
+  - data-parallelism
+  - tensor-parallelism
+  - pipeline-parallelism
+  - fsdp
+sourceStatus: unreviewed
+sourceStatusHash: sha256:89564ae3d5c5d0a036669776c63309fbc0e169d1c73523d52f455cdf95183038
+metadataStatus: current
+metadataSourceHash: sha256:89564ae3d5c5d0a036669776c63309fbc0e169d1c73523d52f455cdf95183038
+featured: false

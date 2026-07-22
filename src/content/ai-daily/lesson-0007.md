@@ -10,7 +10,7 @@ track: A
 depth: L2
 titleZh: RAG 基础（切分 / embedding / 向量库 / 召回）
 titleEn: "RAG Foundations: Chunking, Embeddings, Vector Stores, and Retrieval"
-summaryZh: RAG=给模型开卷考，把知识从参数记忆搬到非参数记忆(可增删/引用/实时更新)；两段式:离线(切分→embedding→入库)+在线(query编码→ANN检索TopK→拼prompt→生成)；成败70%在检索、检索第一张骨牌是切分(大块稀释相似度信号、必挂metadata);embedding=bi-encoder双塔+对比学习,语义相近则向量夹角小(cosine),query与doc必须同一模型编码;向量库存向量+原文+metadata,千万级用ANN(HNSW多层图,O(N)→O(logN));误区:语义≠关键词(需hybrid+BM25)、Lost in the Middle(K不宜大、需rerank)
+summaryZh: RAG=开卷考,知识从参数记忆搬到非参数记忆(可增删/引用/实时更新);两段式=离线(切分→embedding→入库)+在线(query编码→ANN检索TopK→拼prompt→生成);成败70%在检索,第一张骨牌是切分(大块稀释信号,必挂metadata);embedding=bi-encoder双塔+对比学习,语义近则夹角小(cosine),query与doc须同模型编码;向量库存向量+原文+metadata,千万级用ANN(HNSW,O(N)→O(logN));反直觉=语义≠关键词(需hybrid+BM25)、Lost in the Middle需rerank
 summaryEn: Retrieval-augmented generation gives a model an editable external memory through offline indexing and online retrieval. This lesson traces chunking, embeddings, vector storage, approximate nearest-neighbor search, prompt assembly, and generation, while showing why metadata, hybrid retrieval, reranking, and careful top-k selection often matter more than the generator itself.
 slug: rag-foundations-retrieval-pipeline
 tags:

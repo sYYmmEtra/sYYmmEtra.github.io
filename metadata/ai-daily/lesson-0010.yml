@@ -9,7 +9,7 @@ track: A
 depth: L3
 titleZh: 进阶 RAG 检索工程（Hybrid · RRF · Rerank · Contextual Retrieval）
 titleEn: "Advanced RAG Retrieval Engineering: Hybrid Search, RRF, Reranking, and Contextual Retrieval"
-summaryZh: 复访升级day7 RAG基础L2→L3(检索段工程)。day7的bi-encoder双塔有两个架构性洞:①有损压缩(稀有精确token被池化稀释)②无交互(query塔/doc塔各编各的、相关性只能事后近似);换强embedding补不了,需结构性手段。四件套各补一洞:Hybrid=挂BM25(TF-IDF工业版,擅精确串/专名/零样本跨域)补洞①,2026基准BM25多数指标胜顶级dense;RRF=融合只按rank不用分数(cosine与BM25分数尺度不可比、归一化脆),score=Σ1/(k+rank),k=60压头名统治力;Cross-encoder Rerank=[CLS]query[SEP]doc单塔逐层交互补洞②,但O(候选)次前向故只敢用在召回后的top-100(先召回要recall→再精排要precision),+5~15 NDCG/<200ms,选型Cohere v3.5/BGE-reranker-v2-m3,ColBERT late-interaction是利基;Contextual Retrieval=入库前用小LLM给孤儿chunk注入3-4句全文定位再索引,稳胜vanilla Hybrid;反面=HyDE/多查询扩展在精确检索上因引入幻觉噪声反跑输vanilla dense,别默认加。全套:Hybrid保recall+Rerank保precision+Contextual救孤儿+RRF避尺度坑
+summaryZh: 复访day7 L2→L3(检索段)。day7 bi-encoder双塔两洞:①有损压缩(稀有token被池化稀释)②无交互(query/doc各编,相关性事后近似),换强embedding补不了。四件套各补洞:Hybrid挂BM25(2026多数基准胜dense)补①;RRF只按rank融合(分数尺度不可比),score=Σ1/(k+rank),k=60;Cross-encoder Rerank单塔逐层交互补②,但O(候选)次前向故只用于top-100(召回要recall→精排要precision),+5~15 NDCG;Contextual Retrieval入库前用小LLM给孤儿chunk注入全文定位。反直觉=HyDE/查询扩展在精确检索上因幻觉噪声反输vanilla dense
 summaryEn: Advanced retrieval addresses dense bi-encoder weaknesses with complementary stages. The lesson combines BM25 and dense search for recall, reciprocal rank fusion for scale-free merging, cross-encoder reranking for precision, and contextualized chunks for document grounding, while warning that query expansion and hypothetical documents can introduce harmful noise.
 slug: advanced-rag-retrieval-engineering
 tags:

@@ -10,7 +10,7 @@ track: C
 depth: L3
 titleZh: MoE 专家并行与分布式训练
 titleEn: MoE Expert Parallelism and Distributed Training
-summaryZh: 复访升级day6 MoE L2→L3(分布式侧)。第一性原理:MoE省算力不省显存(671B权重全须驻显存,激活37B只省FLOPs)→显存逼出EP=把N个专家切到多卡。EP在四刀(DP切数据/TP切矩阵/PP切层/EP切专家)里最特殊:token走哪个专家运行时才知→通信是最重的all-to-all,总与DP/TP/PP组3D并行。一层MoE六步:gate→⚡dispatch(all-to-all#1按目标专家分拣寄出)→expert compute→⚡combine(all-to-all#2寄回原位,因残差x+FFN要原位相加)→加权和。核心账单:all-to-all吃40%+训练时,14GB/层走NVLink 16ms vs IB 280ms(17×)→PCIe跑不动frontier MoE,拓扑是可行性门槛非优化项。本质=用带宽压力换单卡显存压力(与day8 KV Cache带宽受限同源:算力过剩带宽才是真瓶颈)。第二旋钮:all-to-all要定长buffer→capacity=CF×(tokens×topk/专家数),超额token被dropping走残差pass-through;CF小省算力但掉质量/CF大浪费/dropless要动态形状撞显存墙;须逐层监控drop率(路由塌方体温计),配day6无损失偏置法压均衡。通信三主线:拓扑感知层级化(NVLink vs RDMA分层)/计算通信overlap/路由感知放置(Occult)
+summaryZh: 复访day6 L2→L3(分布式侧)。第一性原理:MoE省算力不省显存(671B权重全驻显存,激活37B只省FLOPs)→显存逼出EP=专家切多卡。四刀里EP最特殊:token走哪专家运行时才知→通信是最重的all-to-all,与DP/TP/PP组3D并行。一层=gate→dispatch(all-to-all#1)→expert compute→combine(all-to-all#2寄回原位)→加权和;账单=all-to-all吃40%+训练时,NVLink 16ms vs IB 280ms(17×)→拓扑是可行性门槛。本质=用带宽压力换单卡显存压力(与day8带宽受限同源)。第二旋钮=capacity=CF×tokens×topk/专家数,超额token被dropping,须逐层监控drop率配day6无损失偏置法
 summaryEn: Expert parallelism shards MoE experts across devices because sparse activation saves computation but leaves all weights resident somewhere. The lesson follows routing, dispatch and combine all-to-all exchanges, capacity factors, token dropping, topology constraints, and communication optimization, showing how distributed MoE trades local memory pressure for severe bandwidth demands.
 slug: moe-expert-parallelism-distributed-training
 tags:

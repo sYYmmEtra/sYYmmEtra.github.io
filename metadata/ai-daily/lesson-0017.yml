@@ -1,0 +1,25 @@
+id: lesson-0017
+source:
+  file: lessons/2026-07-21.md
+  section: 1
+  hash: sha256:70d19f70b76200ad760c2c643c497a765b61f3617e29b404df51b6e1d491c66a
+lesson: 17
+date: 2026-07-21
+track: B
+depth: L2
+titleZh: 对齐算法：RLHF / PPO / DPO
+titleEn: "Alignment Algorithms: RLHF, PPO, and DPO"
+summaryZh: 新主题(合龙day14 β·KL + day9 奖励模型)。对齐=给"最像互联网的续写机"装人类偏好方向盘;经典RLHF三段=SFT出π_ref→Bradley-Terry从偏好对(x,y_w,y_l)学标量奖励RM(=day9学出来的验证器,故有reward hacking洞)→RL最大化 E[r_φ]−β·KL(π_θ‖π_ref);β·KL缰绳防Goodhart(离π_ref越远罚越大),是day14反向KL(mode-seeking→解释RLHF后风格趋同)。PPO显存痛=policy/冻结π_ref/RM/critic四模型同驻(70B≈280B)→2025-26转GRPO砍critic用组内归一化(DeepSeek-R1)。DPO核心=带KL的RL有闭式解π*∝π_ref·exp(r/β),反解r=β·log(π*/π_ref)+β·logZ,塞回BT时logZ因只依赖奖励之差而抵消→奖励=策略自身相对π_ref的对数比(隐式奖励r̂),得纯离线二分类损失−logσ(r̂_w−r̂_l),甩掉RM与RL循环,梯度自带难例权重。反直觉=DPO里KL没消失,是烘焙进β·log(π_θ/π_ref)这项损失结构
+summaryEn: Explains how RLHF combines supervised fine-tuning, preference-trained reward models, and KL-regularized policy optimization. It examines PPO’s resource costs and reward-hacking safeguards, then derives DPO as an offline preference-classification objective whose implicit reward preserves the reference-policy constraint without a separate reward model or reinforcement-learning loop.
+slug: lesson-0017
+tags:
+  - rlhf
+  - ppo
+  - dpo
+  - preference-optimization
+  - kl-regularization
+sourceStatus: unreviewed
+sourceStatusHash: sha256:70d19f70b76200ad760c2c643c497a765b61f3617e29b404df51b6e1d491c66a
+metadataStatus: current
+metadataSourceHash: sha256:70d19f70b76200ad760c2c643c497a765b61f3617e29b404df51b6e1d491c66a
+featured: false
